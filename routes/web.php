@@ -9,9 +9,7 @@ use App\Http\Controllers\TransactionController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
-Route::inertia('/', 'Welcome', [
-    'canRegister' => Features::enabled(Features::registration()),
-])->name('home');
+Route::inertia('/', 'Welcome')->name('home');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthViewController::class, 'login'])->name('login');

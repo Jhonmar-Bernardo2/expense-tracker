@@ -4,6 +4,7 @@ namespace App\Repositories;
 
 use App\Enums\TransactionType;
 use App\Models\Transaction;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 
 class ReportsRepository
@@ -133,7 +134,7 @@ class ReportsRepository
      */
     public function getSpendingTrend(int $userId, int $month, int $year): array
     {
-        return Transaction::query()
+        $rows = Transaction::query()
             ->where('transactions.user_id', $userId)
             ->where('transactions.type', TransactionType::Expense->value)
             ->whereMonth('transactions.transaction_date', $month)
@@ -147,6 +148,22 @@ class ReportsRepository
                 'date' => (string) $row->date,
                 'expenses' => round((float) $row->total, 2),
             ])
+            ->keyBy('date');
+
+        $start = CarbonImmutable::create($year, $month, 1);
+        $end = $start->endOfMonth();
+
+        return collect($start->daysUntil($end->addDay()))
+            ->map(function (CarbonImmutable $date) use ($rows) {
+                $key = $date->toDateString();
+                $row = $rows->get($key);
+
+                return [
+                    'date' => $key,
+                    'expenses' => $row['expenses'] ?? 0.0,
+                ];
+            })
+            ->values()
             ->all();
     }
 
