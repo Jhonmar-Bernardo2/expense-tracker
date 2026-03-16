@@ -58,66 +58,105 @@ const slices = computed(() => {
         };
     });
 });
+const formattedTotal = computed(() => normalized.value.total.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+const centerLabel = computed(() => {
+    if (normalized.value.items.length === 1) {
+        return normalized.value.items[0].label;
+    }
 
-const viewBox = computed(() => {
-    const size = props.size ?? 220;
-
-    return `0 0 ${size} ${size}`;
+    return 'Total';
 });
 
-const toPoint = (angle: number, radius: number, center: number) => {
+const chartStyle = computed(() => {
+    if (normalized.value.total <= 0) {
+        return {};
+    }
+
+    let current = 0;
+    const segments = normalized.value.items.map((item) => {
+        const start = current;
+        const slice = (item.value / normalized.value.total) * 100;
+        current += slice;
+
+        return `${item.color} ${start.toFixed(2)}% ${current.toFixed(2)}%`;
+    });
+
     return {
-        x: center + radius * Math.cos(angle),
-        y: center + radius * Math.sin(angle),
+        backgroundImage: `conic-gradient(${segments.join(', ')})`,
     };
-};
+});
 
-const arcPath = (start: number, end: number, radius: number, center: number) => {
-    const startPoint = toPoint(start, radius, center);
-    const endPoint = toPoint(end, radius, center);
-    const largeArc = end - start > Math.PI ? 1 : 0;
-
-    return [
-        `M ${center} ${center}`,
-        `L ${startPoint.x} ${startPoint.y}`,
-        `A ${radius} ${radius} 0 ${largeArc} 1 ${endPoint.x} ${endPoint.y}`,
-        'Z',
-    ].join(' ');
-};
+const shareSummary = computed(() => {
+    return normalized.value.items.map((item) => ({
+        ...item,
+        percentage: normalized.value.total > 0 ? (item.value / normalized.value.total) * 100 : 0,
+    }));
+});
 </script>
 
 <template>
-    <div class="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px]">
+    <div class="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)] xl:items-center">
         <div class="flex items-center justify-center">
-            <div v-if="slices.length === 0" class="flex h-[220px] w-[220px] items-center justify-center rounded-full border border-dashed text-sm text-muted-foreground">
+            <div v-if="slices.length === 0" class="flex h-[240px] w-[240px] items-center justify-center rounded-full border border-dashed text-sm text-muted-foreground">
                 No data
             </div>
-            <svg v-else :viewBox="viewBox" class="h-[220px] w-[220px]">
-                <g>
-                    <path
-                        v-for="slice in slices"
-                        :key="slice.label"
-                        :d="arcPath(slice.start, slice.end, 100, 110)"
-                        :fill="slice.color"
-                        stroke="white"
-                        stroke-width="2"
-                    />
-                </g>
-            </svg>
+            <div
+                v-else
+                class="relative flex h-[240px] w-[240px] items-center justify-center rounded-full border border-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.18)]"
+                :style="chartStyle"
+            >
+                <div class="flex h-[118px] w-[118px] flex-col items-center justify-center rounded-full border border-white/10 bg-background text-center shadow-inner">
+                    <span class="max-w-[84px] truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        {{ centerLabel }}
+                    </span>
+                    <span class="mt-1 text-base font-semibold text-foreground">{{ formattedTotal }}</span>
+                    <span class="mt-1 text-[11px] text-muted-foreground">tracked spend</span>
+                </div>
+            </div>
         </div>
 
-        <div class="space-y-2">
-            <div class="text-sm font-medium">Breakdown</div>
+        <div class="space-y-4">
+            <div class="flex items-center justify-between gap-3">
+                <div>
+                    <div class="text-sm font-medium">Breakdown</div>
+                    <div class="text-xs text-muted-foreground">How each category contributes to this month&apos;s total</div>
+                </div>
+                <span v-if="normalized.total > 0" class="rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground">
+                    {{ normalized.items.length }} categories
+                </span>
+            </div>
             <div v-if="normalized.total <= 0" class="text-sm text-muted-foreground">
                 Add transactions to see a breakdown.
             </div>
-            <ul v-else class="space-y-2 text-sm">
-                <li v-for="(item, idx) in normalized.items" :key="item.label" class="flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-2">
-                        <span class="h-2.5 w-2.5 rounded" :style="{ backgroundColor: item.color ?? palette[idx % palette.length] }" />
-                        <span class="truncate">{{ item.label }}</span>
+            <ul v-else class="space-y-3 text-sm">
+                <li
+                    v-for="(item, idx) in shareSummary"
+                    :key="item.label"
+                    class="rounded-2xl border bg-muted/10 p-4"
+                >
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="h-3 w-3 shrink-0 rounded-full ring-4 ring-background" :style="{ backgroundColor: item.color ?? palette[idx % palette.length] }" />
+                            <div class="min-w-0">
+                                <div class="truncate font-medium">{{ item.label }}</div>
+                                <div class="text-[11px] text-muted-foreground">{{ item.percentage.toFixed(1) }}% of total spending</div>
+                            </div>
+                        </div>
+                        <div class="min-w-[96px] text-right">
+                            <div class="tabular-nums font-medium text-foreground">{{ item.value.toFixed(2) }}</div>
+                        </div>
                     </div>
-                    <span class="tabular-nums text-muted-foreground">{{ item.value.toFixed(2) }}</span>
+                    <div class="mt-3">
+                        <div class="h-2 overflow-hidden rounded-full bg-muted/70">
+                            <div
+                                class="h-full rounded-full"
+                                :style="{
+                                    width: `${item.percentage}%`,
+                                    backgroundColor: item.color ?? palette[idx % palette.length],
+                                }"
+                            />
+                        </div>
+                    </div>
                 </li>
             </ul>
         </div>

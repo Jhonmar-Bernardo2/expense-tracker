@@ -34,8 +34,8 @@ const normalized = computed(() => {
             No data
         </div>
 
-        <div v-else class="overflow-x-auto">
-            <svg viewBox="0 0 720 260" class="min-w-[720px]">
+        <div v-else class="w-full">
+            <svg viewBox="0 0 720 260" preserveAspectRatio="none" class="h-full w-full">
                 <g>
                     <line x1="40" y1="20" x2="40" y2="220" stroke="currentColor" opacity="0.15" />
                     <line x1="40" y1="220" x2="700" y2="220" stroke="currentColor" opacity="0.15" />
