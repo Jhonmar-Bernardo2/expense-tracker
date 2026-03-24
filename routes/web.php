@@ -4,8 +4,10 @@ use App\Http\Controllers\Auth\AuthViewController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -26,7 +28,7 @@ Route::middleware('guest')->group(function () {
     Route::get('/two-factor-challenge', [AuthViewController::class, 'twoFactorChallenge'])->name('two-factor.login');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'active'])->group(function () {
     if (Features::enabled(Features::emailVerification())) {
         Route::get('/email/verify', [AuthViewController::class, 'verifyEmail'])->name('verification.notice');
     }
@@ -36,11 +38,8 @@ Route::middleware('auth')->group(function () {
     Route::redirect('/profile', '/settings/profile')->name('profile');
 });
 
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
-
-    Route::resource('categories', CategoryController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
 
     Route::resource('budgets', BudgetController::class)
         ->only(['index', 'store', 'update', 'destroy']);
@@ -50,6 +49,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::get('reports', [ReportsController::class, 'index'])
         ->name('reports.index');
+
+    Route::middleware('admin')->group(function () {
+        Route::resource('categories', CategoryController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::resource('departments', DepartmentController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::resource('users', UserController::class)
+            ->only(['index', 'store', 'update']);
+
+        Route::patch('users/{user}/status', [UserController::class, 'updateStatus'])
+            ->name('users.status.update');
+    });
 });
 
 require __DIR__.'/settings.php';

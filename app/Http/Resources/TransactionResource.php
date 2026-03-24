@@ -16,6 +16,7 @@ class TransactionResource extends JsonResource
         return [
             'id' => $this->id,
             'user_id' => $this->user_id,
+            'department_id' => $this->department_id,
             'category_id' => $this->category_id,
             'type' => $this->type->value,
             'title' => $this->title,
@@ -26,6 +27,10 @@ class TransactionResource extends JsonResource
                 'id' => $this->category->id,
                 'name' => $this->category->name,
                 'type' => $this->category->type->value,
+            ]),
+            'department' => $this->whenLoaded('department', fn () => [
+                'id' => $this->department->id,
+                'name' => $this->department->name,
             ]),
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),

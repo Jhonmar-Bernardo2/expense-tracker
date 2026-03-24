@@ -1,4 +1,5 @@
 import type { CategoryType } from './categories';
+import type { DepartmentSummary } from './users';
 
 export type TransactionType = CategoryType;
 
@@ -11,6 +12,7 @@ export type TransactionCategory = {
 export type Transaction = {
     id: number;
     user_id: number;
+    department_id: number;
     category_id: number;
     type: TransactionType;
     title: string;
@@ -18,6 +20,7 @@ export type Transaction = {
     description: string | null;
     transaction_date: string | null;
     category?: TransactionCategory;
+    department?: DepartmentSummary | null;
     created_at: string | null;
     updated_at: string | null;
 };

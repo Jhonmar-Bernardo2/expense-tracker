@@ -63,7 +63,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 const isDialogOpen = ref(false);
 const editingCategory = ref<Category | null>(null);
 const deletingCategoryId = ref<number | null>(null);
-const selectedTypeFilter = ref<CategoryType | 'all'>(props.filters.type ?? 'all');
+const selectedTypeFilter = ref<CategoryType | 'all'>(
+    props.filters.type ?? 'all',
+);
 
 const form = useForm({
     name: '',
@@ -76,8 +78,8 @@ const dialogTitle = computed(() =>
 
 const dialogDescription = computed(() =>
     editingCategory.value
-        ? 'Update the category details for this account.'
-        : 'Create a new category for income or expense tracking.',
+        ? 'Update the shared category details used across departments.'
+        : 'Create a shared category for income or expense tracking.',
 );
 
 const submitLabel = computed(() =>
@@ -88,7 +90,10 @@ const openCreateDialog = () => {
     editingCategory.value = null;
     form.reset();
     form.clearErrors();
-    form.type = selectedTypeFilter.value === 'all' ? 'expense' : selectedTypeFilter.value;
+    form.type =
+        selectedTypeFilter.value === 'all'
+            ? 'expense'
+            : selectedTypeFilter.value;
     isDialogOpen.value = true;
 };
 
@@ -128,7 +133,10 @@ const submit = () => {
         onSuccess: () => {
             closeDialog();
 
-            if (selectedTypeFilter.value !== 'all' && selectedTypeFilter.value !== submittedType) {
+            if (
+                selectedTypeFilter.value !== 'all' &&
+                selectedTypeFilter.value !== submittedType
+            ) {
                 applyTypeFilter(submittedType);
             }
         },
@@ -182,20 +190,29 @@ const deleteCategory = (category: Category) => {
         <div class="flex flex-1 flex-col gap-6 p-4">
             <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <Card class="border-sidebar-border/70 shadow-sm">
-                    <CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <CardHeader
+                        class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+                    >
                         <div class="space-y-1.5">
                             <CardTitle class="flex items-center gap-2 text-xl">
                                 <Tags class="size-5" />
                                 Category management
                             </CardTitle>
                             <CardDescription>
-                                Organize income and expense records with user-scoped categories.
+                                Manage the shared category list used across all
+                                departments.
                             </CardDescription>
                         </div>
 
-                        <Dialog :open="isDialogOpen" @update:open="handleDialogOpenChange">
+                        <Dialog
+                            :open="isDialogOpen"
+                            @update:open="handleDialogOpenChange"
+                        >
                             <DialogTrigger as-child>
-                                <Button class="w-full sm:w-auto" @click="openCreateDialog">
+                                <Button
+                                    class="w-full sm:w-auto"
+                                    @click="openCreateDialog"
+                                >
                                     <Plus class="mr-2 size-4" />
                                     New category
                                 </Button>
@@ -209,7 +226,10 @@ const deleteCategory = (category: Category) => {
                                     </DialogDescription>
                                 </DialogHeader>
 
-                                <form class="space-y-5" @submit.prevent="submit">
+                                <form
+                                    class="space-y-5"
+                                    @submit.prevent="submit"
+                                >
                                     <div class="grid gap-2">
                                         <Label for="category-name">Name</Label>
                                         <Input
@@ -221,14 +241,21 @@ const deleteCategory = (category: Category) => {
                                             maxlength="255"
                                             required
                                         />
-                                        <InputError :message="form.errors.name" />
+                                        <InputError
+                                            :message="form.errors.name"
+                                        />
                                     </div>
 
                                     <div class="grid gap-2">
                                         <Label for="category-type">Type</Label>
                                         <Select v-model="form.type">
-                                            <SelectTrigger id="category-type" class="w-full">
-                                                <SelectValue placeholder="Select a type" />
+                                            <SelectTrigger
+                                                id="category-type"
+                                                class="w-full"
+                                            >
+                                                <SelectValue
+                                                    placeholder="Select a type"
+                                                />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem
@@ -240,14 +267,23 @@ const deleteCategory = (category: Category) => {
                                                 </SelectItem>
                                             </SelectContent>
                                         </Select>
-                                        <InputError :message="form.errors.type" />
+                                        <InputError
+                                            :message="form.errors.type"
+                                        />
                                     </div>
 
                                     <DialogFooter class="gap-2 sm:justify-end">
-                                        <Button type="button" variant="secondary" @click="closeDialog">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            @click="closeDialog"
+                                        >
                                             Cancel
                                         </Button>
-                                        <Button type="submit" :disabled="form.processing">
+                                        <Button
+                                            type="submit"
+                                            :disabled="form.processing"
+                                        >
                                             <Spinner v-if="form.processing" />
                                             {{ submitLabel }}
                                         </Button>
@@ -269,7 +305,9 @@ const deleteCategory = (category: Category) => {
                         <Label for="type-filter">Type</Label>
                         <Select
                             :model-value="selectedTypeFilter"
-                            @update:model-value="applyTypeFilter($event as CategoryType | 'all')"
+                            @update:model-value="
+                                applyTypeFilter($event as CategoryType | 'all')
+                            "
                         >
                             <SelectTrigger id="type-filter" class="w-full">
                                 <SelectValue placeholder="All types" />
@@ -294,57 +332,113 @@ const deleteCategory = (category: Category) => {
                     <CardTitle>Categories</CardTitle>
                     <CardDescription>
                         {{ categories.length }}
-                        {{ categories.length === 1 ? 'category' : 'categories' }} available.
+                        {{
+                            categories.length === 1 ? 'category' : 'categories'
+                        }}
+                        available.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    <div v-if="categories.length === 0" class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+                    <div
+                        v-if="categories.length === 0"
+                        class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
+                    >
                         No categories found for the current filter.
                     </div>
 
                     <div v-else class="overflow-hidden rounded-lg border">
                         <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-border text-sm">
-                                <thead class="bg-muted/50 text-left text-muted-foreground">
+                            <table
+                                class="min-w-full divide-y divide-border text-sm"
+                            >
+                                <thead
+                                    class="bg-muted/50 text-left text-muted-foreground"
+                                >
                                     <tr>
-                                        <th class="px-4 py-3 font-medium">Name</th>
-                                        <th class="px-4 py-3 font-medium">Type</th>
-                                        <th class="px-4 py-3 font-medium">Usage</th>
-                                        <th class="px-4 py-3 text-right font-medium">Actions</th>
+                                        <th class="px-4 py-3 font-medium">
+                                            Name
+                                        </th>
+                                        <th class="px-4 py-3 font-medium">
+                                            Type
+                                        </th>
+                                        <th class="px-4 py-3 font-medium">
+                                            Usage
+                                        </th>
+                                        <th
+                                            class="px-4 py-3 text-right font-medium"
+                                        >
+                                            Actions
+                                        </th>
                                     </tr>
                                 </thead>
-                                <tbody class="divide-y divide-border bg-background">
-                                    <tr v-for="category in categories" :key="category.id">
-                                        <td class="px-4 py-3 font-medium text-foreground">
+                                <tbody
+                                    class="divide-y divide-border bg-background"
+                                >
+                                    <tr
+                                        v-for="category in categories"
+                                        :key="category.id"
+                                    >
+                                        <td
+                                            class="px-4 py-3 font-medium text-foreground"
+                                        >
                                             {{ category.name }}
                                         </td>
                                         <td class="px-4 py-3">
                                             <Badge
-                                                :variant="category.type === 'income' ? 'default' : 'secondary'"
+                                                :variant="
+                                                    category.type === 'income'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                "
                                                 class="capitalize"
                                             >
                                                 {{ category.type }}
                                             </Badge>
                                         </td>
-                                        <td class="px-4 py-3 text-muted-foreground">
-                                            {{ category.transaction_count }} transactions
+                                        <td
+                                            class="px-4 py-3 text-muted-foreground"
+                                        >
+                                            {{ category.transaction_count }}
+                                            transactions
                                             <span class="mx-1">&middot;</span>
                                             {{ category.budget_count }} budgets
                                         </td>
                                         <td class="px-4 py-3">
                                             <div class="flex justify-end gap-2">
-                                                <Button variant="outline" size="sm" @click="openEditDialog(category)">
-                                                    <Pencil class="mr-2 size-4" />
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    @click="
+                                                        openEditDialog(category)
+                                                    "
+                                                >
+                                                    <Pencil
+                                                        class="mr-2 size-4"
+                                                    />
                                                     Edit
                                                 </Button>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    :disabled="!category.can_delete || deletingCategoryId === category.id"
-                                                    @click="deleteCategory(category)"
+                                                    :disabled="
+                                                        !category.can_delete ||
+                                                        deletingCategoryId ===
+                                                            category.id
+                                                    "
+                                                    @click="
+                                                        deleteCategory(category)
+                                                    "
                                                 >
-                                                    <Spinner v-if="deletingCategoryId === category.id" />
-                                                    <Trash2 v-else class="mr-2 size-4" />
+                                                    <Spinner
+                                                        v-if="
+                                                            deletingCategoryId ===
+                                                            category.id
+                                                        "
+                                                    />
+                                                    <Trash2
+                                                        v-else
+                                                        class="mr-2 size-4"
+                                                    />
                                                     Delete
                                                 </Button>
                                             </div>

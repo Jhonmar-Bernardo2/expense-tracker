@@ -1,16 +1,20 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Pencil, Plus, Receipt, Trash2 } from 'lucide-vue-next';
+import { Building2, Pencil, Plus, Receipt, Trash2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+    Card,
+    CardContent,
+    CardDescription,
+    CardHeader,
+    CardTitle,
+} from '@/components/ui/card';
 import {
     Dialog,
     DialogContent,
-    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -33,7 +37,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
@@ -46,25 +49,31 @@ import {
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { destroy, index, store, update } from '@/routes/transactions';
-import type { BreadcrumbItem, Budget, Category, CategoryType, Paginator, Transaction } from '@/types';
+import type {
+    BreadcrumbItem,
+    Category,
+    CategoryType,
+    DepartmentOption,
+    DepartmentScope,
+    Paginator,
+    Transaction,
+} from '@/types';
 
 type TransactionTypeTab = CategoryType | 'all';
-
-type TransactionTypeOption = {
-    value: CategoryType;
-    label: string;
-};
+type TransactionTypeOption = { value: CategoryType; label: string };
 
 const props = defineProps<{
     transactions: Paginator<Transaction>;
     categories: Category[];
-    budgets: Budget[];
+    departments: DepartmentOption[];
+    department_scope: DepartmentScope;
     filters: {
         type: CategoryType | null;
         category: number | null;
         month: number | null;
         year: number | null;
         search: string | null;
+        department: number | null;
     };
     types: TransactionTypeOption[];
     years: number[];
@@ -74,17 +83,6 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
     { title: 'Transactions', href: index() },
 ];
-
-const today = () => new Date().toISOString().slice(0, 10);
-
-const isDialogOpen = ref(false);
-const editingTransaction = ref<Transaction | null>(null);
-
-const selectedTypeFilter = ref<TransactionTypeTab>(props.filters.type ?? 'all');
-const selectedCategoryFilter = ref<number | 'all'>(props.filters.category ?? 'all');
-const selectedMonthFilter = ref<number | 'all'>(props.filters.month ?? 'all');
-const selectedYearFilter = ref<number | 'all'>(props.filters.year ?? 'all');
-const searchFilter = ref(props.filters.search ?? '');
 
 const months = [
     { value: 1, label: 'January' },
@@ -101,207 +99,150 @@ const months = [
     { value: 12, label: 'December' },
 ];
 
-const filterCategories = computed(() => {
-    if (selectedTypeFilter.value === 'all') {
-        return props.categories;
-    }
+const isDialogOpen = ref(false);
+const editingTransaction = ref<Transaction | null>(null);
+const selectedType = ref<TransactionTypeTab>(props.filters.type ?? 'all');
+const selectedCategory = ref<number | 'all'>(props.filters.category ?? 'all');
+const selectedMonth = ref<number | 'all'>(props.filters.month ?? 'all');
+const selectedYear = ref<number | 'all'>(props.filters.year ?? 'all');
+const selectedDepartment = ref<number | 'all'>(
+    props.filters.department ?? 'all',
+);
+const search = ref(props.filters.search ?? '');
 
-    return props.categories.filter((c) => c.type === selectedTypeFilter.value);
-});
-
-const formCategories = computed(() => {
-    return props.categories.filter((c) => c.type === form.type);
-});
-
-const budgetMonthYear = computed(() => {
-    if (!form.transaction_date) {
-        return null;
-    }
-
-    const [year, month] = form.transaction_date.split('-').map(Number);
-
-    if (!year || !month) {
-        return null;
-    }
-
-    return {
-        month,
-        year,
-    };
-});
+const canSelectDepartment = computed(
+    () => props.department_scope.can_select_department,
+);
+const departmentLabel = computed(() =>
+    props.department_scope.is_all_departments
+        ? 'All departments'
+        : (props.department_scope.selected_department?.name ??
+          'Assigned department'),
+);
 
 const form = useForm({
+    department_id:
+        props.department_scope.department_id ??
+        props.departments[0]?.id ??
+        null,
     type: (props.filters.type ?? 'expense') as CategoryType,
     category_id: null as number | null,
     title: '',
     amount: '',
     description: '',
-    transaction_date: today(),
+    transaction_date: new Date().toISOString().slice(0, 10),
 });
 
-const selectedBudget = computed(() => {
-    if (form.type !== 'expense' || form.category_id === null || budgetMonthYear.value === null) {
-        return null;
-    }
-
-    return (
-        props.budgets.find((budget) =>
-            budget.category_id === form.category_id
-            && budget.month === budgetMonthYear.value?.month
-            && budget.year === budgetMonthYear.value?.year,
-        ) ?? null
-    );
-});
-
-const formAmount = computed(() => {
-    const amount = Number(form.amount);
-
-    return Number.isFinite(amount) ? amount : 0;
-});
-
-const editingBudgetContribution = computed(() => {
-    if (editingTransaction.value === null || selectedBudget.value === null) {
-        return 0;
-    }
-
-    if (editingTransaction.value.type !== 'expense') {
-        return 0;
-    }
-
-    if (editingTransaction.value.category_id !== selectedBudget.value.category_id) {
-        return 0;
-    }
-
-    if (!editingTransaction.value.transaction_date) {
-        return 0;
-    }
-
-    const [year, month] = editingTransaction.value.transaction_date.split('-').map(Number);
-
-    if (year !== selectedBudget.value.year || month !== selectedBudget.value.month) {
-        return 0;
-    }
-
-    const amount = Number(editingTransaction.value.amount);
-
-    return Number.isFinite(amount) ? amount : 0;
-});
-
-const budgetContext = computed(() => {
-    if (selectedBudget.value === null) {
-        return null;
-    }
-
-    const adjustedSpent = Math.max(0, selectedBudget.value.amount_spent - editingBudgetContribution.value);
-    const projectedSpent = adjustedSpent + Math.max(0, formAmount.value);
-
-    return {
-        ...selectedBudget.value,
-        adjusted_spent: Number(adjustedSpent.toFixed(2)),
-        projected_spent: Number(projectedSpent.toFixed(2)),
-        projected_remaining: Number((selectedBudget.value.amount_limit - projectedSpent).toFixed(2)),
-        will_exceed: projectedSpent > selectedBudget.value.amount_limit,
-    };
-});
-
-const dialogTitle = computed(() =>
-    editingTransaction.value ? 'Edit transaction' : 'Add transaction',
+const filterCategories = computed(() =>
+    selectedType.value === 'all'
+        ? props.categories
+        : props.categories.filter(
+              (category) => category.type === selectedType.value,
+          ),
 );
 
-const dialogDescription = computed(() =>
-    editingTransaction.value
-        ? 'Update the details for this transaction.'
-        : 'Record a new income or expense for this account.',
+const formCategories = computed(() =>
+    props.categories.filter((category) => category.type === form.type),
 );
 
-const submitLabel = computed(() =>
-    editingTransaction.value ? 'Save changes' : 'Create transaction',
+watch(
+    () => form.type,
+    () => {
+        if (
+            formCategories.value.some(
+                (category) => category.id === form.category_id,
+            )
+        ) {
+            return;
+        }
+
+        form.category_id = formCategories.value[0]?.id ?? null;
+    },
 );
+
+const resetForm = () => {
+    form.reset();
+    form.clearErrors();
+    form.type = selectedType.value === 'all' ? 'expense' : selectedType.value;
+    form.transaction_date = new Date().toISOString().slice(0, 10);
+    form.department_id =
+        props.department_scope.department_id ??
+        props.departments[0]?.id ??
+        null;
+
+    if (canSelectDepartment.value && selectedDepartment.value !== 'all') {
+        form.department_id = selectedDepartment.value;
+    }
+
+    form.category_id =
+        props.categories.find((category) => category.type === form.type)?.id ??
+        null;
+};
 
 const openCreateDialog = () => {
     editingTransaction.value = null;
-    form.reset();
-    form.clearErrors();
-
-    form.type = selectedTypeFilter.value === 'all' ? 'expense' : selectedTypeFilter.value;
-    form.transaction_date = today();
-
-    const firstCategory = props.categories.find((c) => c.type === form.type);
-    form.category_id = firstCategory?.id ?? null;
-
+    resetForm();
     isDialogOpen.value = true;
 };
 
 const openEditDialog = (transaction: Transaction) => {
     editingTransaction.value = transaction;
+    form.department_id = transaction.department_id;
     form.type = transaction.type;
     form.category_id = transaction.category_id;
     form.title = transaction.title;
     form.amount = transaction.amount;
     form.description = transaction.description ?? '';
-    form.transaction_date = transaction.transaction_date ?? today();
+    form.transaction_date =
+        transaction.transaction_date ?? new Date().toISOString().slice(0, 10);
     form.clearErrors();
     isDialogOpen.value = true;
-};
-
-const closeDialog = () => {
-    isDialogOpen.value = false;
-    editingTransaction.value = null;
-    form.reset();
-    form.clearErrors();
-};
-
-watch(
-    () => form.type,
-    () => {
-        const firstCategory = props.categories.find((c) => c.type === form.type);
-        form.category_id = firstCategory?.id ?? null;
-    },
-);
-
-const submit = () => {
-    const action = editingTransaction.value
-        ? update(editingTransaction.value.id)
-        : store();
-
-    form.submit(action.method, action.url, {
-        preserveScroll: true,
-        onSuccess: () => closeDialog(),
-    });
 };
 
 const applyFilters = () => {
     router.get(
         index.url({
             query: {
-                type: selectedTypeFilter.value === 'all' ? undefined : selectedTypeFilter.value,
-                category: selectedCategoryFilter.value === 'all' ? undefined : selectedCategoryFilter.value,
-                month: selectedMonthFilter.value === 'all' ? undefined : selectedMonthFilter.value,
-                year: selectedYearFilter.value === 'all' ? undefined : selectedYearFilter.value,
-                search: searchFilter.value.trim().length > 0 ? searchFilter.value.trim() : undefined,
+                type:
+                    selectedType.value === 'all'
+                        ? undefined
+                        : selectedType.value,
+                category:
+                    selectedCategory.value === 'all'
+                        ? undefined
+                        : selectedCategory.value,
+                month:
+                    selectedMonth.value === 'all'
+                        ? undefined
+                        : selectedMonth.value,
+                year:
+                    selectedYear.value === 'all'
+                        ? undefined
+                        : selectedYear.value,
+                department:
+                    selectedDepartment.value === 'all'
+                        ? undefined
+                        : selectedDepartment.value,
+                search: search.value.trim() || undefined,
             },
         }),
         {},
-        {
-            preserveScroll: true,
-            preserveState: true,
-            replace: true,
-        },
+        { preserveScroll: true, preserveState: true, replace: true },
     );
 };
 
-const setTypeFilter = (value: TransactionTypeTab) => {
-    selectedTypeFilter.value = value;
-
-    if (value !== 'all') {
-        const stillValid = filterCategories.value.some((c) => c.id === selectedCategoryFilter.value);
-
-        if (!stillValid) {
-            selectedCategoryFilter.value = 'all';
-        }
-    }
-
-    applyFilters();
+const submit = () => {
+    const action = editingTransaction.value
+        ? update(editingTransaction.value.id)
+        : store();
+    form.submit(action.method, action.url, {
+        preserveScroll: true,
+        onSuccess: () => {
+            isDialogOpen.value = false;
+            editingTransaction.value = null;
+            resetForm();
+        },
+    });
 };
 
 const deleteTransaction = (transaction: Transaction) => {
@@ -309,11 +250,7 @@ const deleteTransaction = (transaction: Transaction) => {
         return;
     }
 
-    const action = destroy(transaction.id);
-
-    router.delete(action.url, {
-        preserveScroll: true,
-    });
+    router.delete(destroy(transaction.id).url, { preserveScroll: true });
 };
 </script>
 
@@ -322,22 +259,28 @@ const deleteTransaction = (transaction: Transaction) => {
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-1 flex-col gap-6 p-4">
-            <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <Card class="border-sidebar-border/70 shadow-sm">
-                    <CardHeader class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <CardHeader
+                        class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+                    >
                         <div class="space-y-1.5">
                             <CardTitle class="flex items-center gap-2 text-xl">
                                 <Receipt class="size-5" />
                                 Transactions
                             </CardTitle>
-                            <CardDescription>
-                                Track income and expenses with user-scoped categories.
-                            </CardDescription>
+                            <CardDescription
+                                >Track department-level income and
+                                expenses.</CardDescription
+                            >
                         </div>
 
                         <Dialog v-model:open="isDialogOpen">
                             <DialogTrigger as-child>
-                                <Button class="w-full sm:w-auto" @click="openCreateDialog">
+                                <Button
+                                    class="w-full sm:w-auto"
+                                    @click="openCreateDialog"
+                                >
                                     <Plus class="mr-2 size-4" />
                                     Add transaction
                                 </Button>
@@ -345,33 +288,92 @@ const deleteTransaction = (transaction: Transaction) => {
 
                             <DialogContent class="sm:max-w-lg">
                                 <DialogHeader>
-                                    <DialogTitle>{{ dialogTitle }}</DialogTitle>
-                                    <DialogDescription>{{ dialogDescription }}</DialogDescription>
+                                    <DialogTitle>{{
+                                        editingTransaction
+                                            ? 'Edit transaction'
+                                            : 'Add transaction'
+                                    }}</DialogTitle>
                                 </DialogHeader>
 
-                                <form class="space-y-5" @submit.prevent="submit">
-                                    <div class="grid gap-2 sm:grid-cols-2">
+                                <form
+                                    class="space-y-4"
+                                    @submit.prevent="submit"
+                                >
+                                    <div
+                                        v-if="canSelectDepartment"
+                                        class="grid gap-2"
+                                    >
+                                        <Label for="transaction-department"
+                                            >Department</Label
+                                        >
+                                        <Select v-model="form.department_id">
+                                            <SelectTrigger
+                                                id="transaction-department"
+                                                ><SelectValue
+                                                    placeholder="Select department"
+                                            /></SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem
+                                                    v-for="department in departments"
+                                                    :key="department.id"
+                                                    :value="department.id"
+                                                >
+                                                    {{ department.name }}
+                                                </SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <InputError
+                                            :message="form.errors.department_id"
+                                        />
+                                    </div>
+
+                                    <div
+                                        v-else
+                                        class="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+                                    >
+                                        <span
+                                            class="font-medium text-foreground"
+                                            >Department:</span
+                                        >
+                                        {{ departmentLabel }}
+                                    </div>
+
+                                    <div class="grid gap-4 sm:grid-cols-2">
                                         <div class="grid gap-2">
-                                            <Label for="transaction-type">Type</Label>
+                                            <Label for="transaction-type"
+                                                >Type</Label
+                                            >
                                             <Select v-model="form.type">
-                                                <SelectTrigger id="transaction-type" class="w-full">
-                                                    <SelectValue placeholder="Select a type" />
-                                                </SelectTrigger>
+                                                <SelectTrigger
+                                                    id="transaction-type"
+                                                    ><SelectValue
+                                                        placeholder="Select type"
+                                                /></SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem v-for="type in types" :key="type.value" :value="type.value">
+                                                    <SelectItem
+                                                        v-for="type in types"
+                                                        :key="type.value"
+                                                        :value="type.value"
+                                                    >
                                                         {{ type.label }}
                                                     </SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            <InputError :message="form.errors.type" />
+                                            <InputError
+                                                :message="form.errors.type"
+                                            />
                                         </div>
 
                                         <div class="grid gap-2">
-                                            <Label for="transaction-category">Category</Label>
+                                            <Label for="transaction-category"
+                                                >Category</Label
+                                            >
                                             <Select v-model="form.category_id">
-                                                <SelectTrigger id="transaction-category" class="w-full">
-                                                    <SelectValue placeholder="Select a category" />
-                                                </SelectTrigger>
+                                                <SelectTrigger
+                                                    id="transaction-category"
+                                                    ><SelectValue
+                                                        placeholder="Select category"
+                                                /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem
                                                         v-for="category in formCategories"
@@ -382,144 +384,190 @@ const deleteTransaction = (transaction: Transaction) => {
                                                     </SelectItem>
                                                 </SelectContent>
                                             </Select>
-                                            <InputError :message="form.errors.category_id" />
+                                            <InputError
+                                                :message="
+                                                    form.errors.category_id
+                                                "
+                                            />
                                         </div>
                                     </div>
 
                                     <div class="grid gap-2">
-                                        <Label for="transaction-title">Title</Label>
+                                        <Label for="transaction-title"
+                                            >Title</Label
+                                        >
                                         <Input
                                             id="transaction-title"
                                             v-model="form.title"
                                             type="text"
-                                            placeholder="e.g. Salary, Groceries, Rent"
-                                            autofocus
                                         />
-                                        <InputError :message="form.errors.title" />
+                                        <InputError
+                                            :message="form.errors.title"
+                                        />
                                     </div>
 
-                                    <div class="grid gap-2 sm:grid-cols-2">
+                                    <div class="grid gap-4 sm:grid-cols-2">
                                         <div class="grid gap-2">
-                                            <Label for="transaction-amount">Amount</Label>
+                                            <Label for="transaction-amount"
+                                                >Amount</Label
+                                            >
                                             <Input
                                                 id="transaction-amount"
                                                 v-model="form.amount"
                                                 type="number"
                                                 min="0"
                                                 step="0.01"
-                                                inputmode="decimal"
-                                                placeholder="0.00"
                                             />
-                                            <InputError :message="form.errors.amount" />
+                                            <InputError
+                                                :message="form.errors.amount"
+                                            />
                                         </div>
 
                                         <div class="grid gap-2">
-                                            <Label for="transaction-date">Date</Label>
+                                            <Label for="transaction-date"
+                                                >Date</Label
+                                            >
                                             <Input
                                                 id="transaction-date"
                                                 v-model="form.transaction_date"
                                                 type="date"
                                             />
-                                            <InputError :message="form.errors.transaction_date" />
+                                            <InputError
+                                                :message="
+                                                    form.errors.transaction_date
+                                                "
+                                            />
                                         </div>
                                     </div>
 
-                                    <Alert
-                                        v-if="budgetContext"
-                                        :variant="budgetContext.will_exceed ? 'destructive' : 'default'"
-                                    >
-                                        <AlertTitle>
-                                            {{ budgetContext.will_exceed ? 'Budget warning' : 'Budget status' }}
-                                        </AlertTitle>
-                                        <AlertDescription>
-                                            <p>
-                                                {{ budgetContext.category_name }} limit:
-                                                {{ budgetContext.amount_limit.toFixed(2) }}
-                                            </p>
-                                            <p>
-                                                Current spent:
-                                                {{ budgetContext.adjusted_spent.toFixed(2) }}
-                                                - Projected spent:
-                                                {{ budgetContext.projected_spent.toFixed(2) }}
-                                            </p>
-                                            <p>
-                                                Remaining after save:
-                                                {{ budgetContext.projected_remaining.toFixed(2) }}
-                                            </p>
-                                        </AlertDescription>
-                                    </Alert>
-
                                     <div class="grid gap-2">
-                                        <Label for="transaction-description">Description</Label>
+                                        <Label for="transaction-description"
+                                            >Description</Label
+                                        >
                                         <Input
                                             id="transaction-description"
                                             v-model="form.description"
                                             type="text"
-                                            placeholder="Optional notes"
                                         />
-                                        <InputError :message="form.errors.description" />
+                                        <InputError
+                                            :message="form.errors.description"
+                                        />
                                     </div>
 
                                     <DialogFooter class="gap-2 sm:justify-end">
-                                        <Button type="button" variant="secondary" @click="closeDialog">
-                                            Cancel
-                                        </Button>
-                                        <Button type="submit" :disabled="form.processing">
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            @click="isDialogOpen = false"
+                                            >Cancel</Button
+                                        >
+                                        <Button
+                                            type="submit"
+                                            :disabled="form.processing"
+                                        >
                                             <Spinner v-if="form.processing" />
-                                            {{ submitLabel }}
+                                            {{
+                                                editingTransaction
+                                                    ? 'Save changes'
+                                                    : 'Create transaction'
+                                            }}
                                         </Button>
                                     </DialogFooter>
                                 </form>
                             </DialogContent>
                         </Dialog>
                     </CardHeader>
-
-                    <CardContent>
-                        <div class="flex flex-wrap items-center gap-2">
-                            <Button
-                                :variant="selectedTypeFilter === 'all' ? 'default' : 'outline'"
-                                size="sm"
-                                @click="setTypeFilter('all')"
-                            >
-                                All
-                            </Button>
-                            <Button
-                                :variant="selectedTypeFilter === 'income' ? 'default' : 'outline'"
-                                size="sm"
-                                @click="setTypeFilter('income')"
-                            >
-                                Income
-                            </Button>
-                            <Button
-                                :variant="selectedTypeFilter === 'expense' ? 'default' : 'outline'"
-                                size="sm"
-                                @click="setTypeFilter('expense')"
-                            >
-                                Expenses
-                            </Button>
-                        </div>
-                    </CardContent>
                 </Card>
 
                 <Card class="border-sidebar-border/70 shadow-sm">
                     <CardHeader>
                         <CardTitle>Filters</CardTitle>
-                        <CardDescription>
-                            Refine results by category, month, year, or search.
-                        </CardDescription>
+                        <CardDescription
+                            >Filter by department, type, category, period, or
+                            search.</CardDescription
+                        >
                     </CardHeader>
                     <CardContent class="space-y-4">
+                        <div v-if="canSelectDepartment" class="grid gap-2">
+                            <Label for="filter-department">Department</Label>
+                            <Select
+                                :model-value="selectedDepartment"
+                                @update:model-value="
+                                    selectedDepartment = $event as
+                                        | number
+                                        | 'all';
+                                    applyFilters();
+                                "
+                            >
+                                <SelectTrigger id="filter-department"
+                                    ><SelectValue placeholder="All departments"
+                                /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all"
+                                        >All departments</SelectItem
+                                    >
+                                    <SelectItem
+                                        v-for="department in departments"
+                                        :key="department.id"
+                                        :value="department.id"
+                                    >
+                                        {{ department.name }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        <div
+                            v-else
+                            class="flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
+                        >
+                            <Building2 class="size-4" />
+                            {{ departmentLabel }}
+                        </div>
+
+                        <div class="grid gap-2">
+                            <Label for="filter-type">Type</Label>
+                            <Select
+                                :model-value="selectedType"
+                                @update:model-value="
+                                    selectedType = $event as TransactionTypeTab;
+                                    applyFilters();
+                                "
+                            >
+                                <SelectTrigger id="filter-type"
+                                    ><SelectValue placeholder="All types"
+                                /></SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all"
+                                        >All types</SelectItem
+                                    >
+                                    <SelectItem
+                                        v-for="type in types"
+                                        :key="type.value"
+                                        :value="type.value"
+                                    >
+                                        {{ type.label }}
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
+
                         <div class="grid gap-2">
                             <Label for="filter-category">Category</Label>
                             <Select
-                                :model-value="selectedCategoryFilter"
-                                @update:model-value="selectedCategoryFilter = $event as number | 'all'; applyFilters();"
+                                :model-value="selectedCategory"
+                                @update:model-value="
+                                    selectedCategory = $event as number | 'all';
+                                    applyFilters();
+                                "
                             >
-                                <SelectTrigger id="filter-category" class="w-full">
-                                    <SelectValue placeholder="All categories" />
-                                </SelectTrigger>
+                                <SelectTrigger id="filter-category"
+                                    ><SelectValue placeholder="All categories"
+                                /></SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All categories</SelectItem>
+                                    <SelectItem value="all"
+                                        >All categories</SelectItem
+                                    >
                                     <SelectItem
                                         v-for="category in filterCategories"
                                         :key="category.id"
@@ -535,15 +583,26 @@ const deleteTransaction = (transaction: Transaction) => {
                             <div class="grid gap-2">
                                 <Label for="filter-month">Month</Label>
                                 <Select
-                                    :model-value="selectedMonthFilter"
-                                    @update:model-value="selectedMonthFilter = $event as number | 'all'; applyFilters();"
+                                    :model-value="selectedMonth"
+                                    @update:model-value="
+                                        selectedMonth = $event as
+                                            | number
+                                            | 'all';
+                                        applyFilters();
+                                    "
                                 >
-                                    <SelectTrigger id="filter-month" class="w-full">
-                                        <SelectValue placeholder="All months" />
-                                    </SelectTrigger>
+                                    <SelectTrigger id="filter-month"
+                                        ><SelectValue placeholder="All months"
+                                    /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All months</SelectItem>
-                                        <SelectItem v-for="month in months" :key="month.value" :value="month.value">
+                                        <SelectItem value="all"
+                                            >All months</SelectItem
+                                        >
+                                        <SelectItem
+                                            v-for="month in months"
+                                            :key="month.value"
+                                            :value="month.value"
+                                        >
                                             {{ month.label }}
                                         </SelectItem>
                                     </SelectContent>
@@ -553,15 +612,24 @@ const deleteTransaction = (transaction: Transaction) => {
                             <div class="grid gap-2">
                                 <Label for="filter-year">Year</Label>
                                 <Select
-                                    :model-value="selectedYearFilter"
-                                    @update:model-value="selectedYearFilter = $event as number | 'all'; applyFilters();"
+                                    :model-value="selectedYear"
+                                    @update:model-value="
+                                        selectedYear = $event as number | 'all';
+                                        applyFilters();
+                                    "
                                 >
-                                    <SelectTrigger id="filter-year" class="w-full">
-                                        <SelectValue placeholder="All years" />
-                                    </SelectTrigger>
+                                    <SelectTrigger id="filter-year"
+                                        ><SelectValue placeholder="All years"
+                                    /></SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="all">All years</SelectItem>
-                                        <SelectItem v-for="year in years" :key="year" :value="year">
+                                        <SelectItem value="all"
+                                            >All years</SelectItem
+                                        >
+                                        <SelectItem
+                                            v-for="year in years"
+                                            :key="year"
+                                            :value="year"
+                                        >
                                             {{ year }}
                                         </SelectItem>
                                     </SelectContent>
@@ -569,22 +637,20 @@ const deleteTransaction = (transaction: Transaction) => {
                             </div>
                         </div>
 
-                        <Separator />
-
                         <div class="grid gap-2">
                             <Label for="filter-search">Search</Label>
                             <Input
                                 id="filter-search"
-                                v-model="searchFilter"
+                                v-model="search"
                                 type="text"
-                                placeholder="Title, description, or category"
                                 @keyup.enter="applyFilters"
                             />
-                            <div class="flex justify-end">
-                                <Button variant="outline" size="sm" @click="applyFilters">
-                                    Apply
-                                </Button>
-                            </div>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                @click="applyFilters"
+                                >Apply</Button
+                            >
                         </div>
                     </CardContent>
                 </Card>
@@ -593,13 +659,18 @@ const deleteTransaction = (transaction: Transaction) => {
             <Card class="border-sidebar-border/70 shadow-sm">
                 <CardHeader>
                     <CardTitle>Results</CardTitle>
-                    <CardDescription>
-                        {{ transactions.meta.total }} transaction{{ transactions.meta.total === 1 ? '' : 's' }} found.
-                    </CardDescription>
+                    <CardDescription
+                        >{{ transactions.meta.total }} transaction{{
+                            transactions.meta.total === 1 ? '' : 's'
+                        }}
+                        found.</CardDescription
+                    >
                 </CardHeader>
-
                 <CardContent>
-                    <div v-if="transactions.data.length === 0" class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
+                    <div
+                        v-if="transactions.data.length === 0"
+                        class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
+                    >
                         No transactions found for the current filters.
                     </div>
 
@@ -608,44 +679,89 @@ const deleteTransaction = (transaction: Transaction) => {
                             <TableHeader class="bg-muted/50">
                                 <TableRow>
                                     <TableHead>Date</TableHead>
+                                    <TableHead v-if="canSelectDepartment"
+                                        >Department</TableHead
+                                    >
                                     <TableHead>Title</TableHead>
                                     <TableHead>Category</TableHead>
                                     <TableHead>Type</TableHead>
-                                    <TableHead class="text-right">Amount</TableHead>
-                                    <TableHead class="text-right">Actions</TableHead>
+                                    <TableHead class="text-right"
+                                        >Amount</TableHead
+                                    >
+                                    <TableHead class="text-right"
+                                        >Actions</TableHead
+                                    >
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                <TableRow v-for="transaction in transactions.data" :key="transaction.id">
-                                    <TableCell class="whitespace-nowrap text-muted-foreground">
-                                        {{ transaction.transaction_date ?? '-' }}
-                                    </TableCell>
-                                    <TableCell class="font-medium">
-                                        <div class="max-w-[320px] truncate">{{ transaction.title }}</div>
-                                        <div v-if="transaction.description" class="max-w-[320px] truncate text-xs text-muted-foreground">
+                                <TableRow
+                                    v-for="transaction in transactions.data"
+                                    :key="transaction.id"
+                                >
+                                    <TableCell>{{
+                                        transaction.transaction_date ?? '-'
+                                    }}</TableCell>
+                                    <TableCell v-if="canSelectDepartment">{{
+                                        transaction.department?.name ?? '-'
+                                    }}</TableCell>
+                                    <TableCell>
+                                        <div class="font-medium">
+                                            {{ transaction.title }}
+                                        </div>
+                                        <div
+                                            v-if="transaction.description"
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             {{ transaction.description }}
                                         </div>
                                     </TableCell>
+                                    <TableCell>{{
+                                        transaction.category?.name ?? '-'
+                                    }}</TableCell>
                                     <TableCell>
-                                        <div class="truncate">{{ transaction.category?.name ?? '-' }}</div>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge :variant="transaction.type === 'income' ? 'default' : 'secondary'" class="capitalize">
+                                        <Badge
+                                            :variant="
+                                                transaction.type === 'income'
+                                                    ? 'default'
+                                                    : 'secondary'
+                                            "
+                                            class="capitalize"
+                                        >
                                             {{ transaction.type }}
                                         </Badge>
                                     </TableCell>
                                     <TableCell class="text-right tabular-nums">
-                                        <span :class="transaction.type === 'income' ? 'text-emerald-600' : 'text-rose-600'">
-                                            {{ transaction.type === 'income' ? '+' : '-' }}{{ Number(transaction.amount).toFixed(2) }}
-                                        </span>
+                                        {{
+                                            transaction.type === 'income'
+                                                ? '+'
+                                                : '-'
+                                        }}{{
+                                            Number(transaction.amount).toFixed(
+                                                2,
+                                            )
+                                        }}
                                     </TableCell>
                                     <TableCell>
                                         <div class="flex justify-end gap-2">
-                                            <Button variant="outline" size="sm" @click="openEditDialog(transaction)">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                @click="
+                                                    openEditDialog(transaction)
+                                                "
+                                            >
                                                 <Pencil class="mr-2 size-4" />
                                                 Edit
                                             </Button>
-                                            <Button variant="outline" size="sm" @click="deleteTransaction(transaction)">
+                                            <Button
+                                                variant="outline"
+                                                size="sm"
+                                                @click="
+                                                    deleteTransaction(
+                                                        transaction,
+                                                    )
+                                                "
+                                            >
                                                 <Trash2 class="mr-2 size-4" />
                                                 Delete
                                             </Button>
@@ -659,13 +775,20 @@ const deleteTransaction = (transaction: Transaction) => {
                     <div class="mt-4">
                         <Pagination v-if="transactions.meta.last_page > 1">
                             <PaginationContent>
-                                <PaginationItem>
-                                    <PaginationPrev :href="transactions.links.prev" :disabled="!transactions.links.prev" />
-                                </PaginationItem>
-
-                                <PaginationItem v-for="link in transactions.meta.links" :key="link.label">
+                                <PaginationItem
+                                    ><PaginationPrev
+                                        :href="transactions.links.prev"
+                                        :disabled="!transactions.links.prev"
+                                /></PaginationItem>
+                                <PaginationItem
+                                    v-for="link in transactions.meta.links"
+                                    :key="link.label"
+                                >
                                     <PaginationLink
-                                        v-if="link.label !== 'Previous' && link.label !== 'Next'"
+                                        v-if="
+                                            link.label !== 'Previous' &&
+                                            link.label !== 'Next'
+                                        "
                                         :href="link.url"
                                         :is-active="link.active"
                                         :disabled="!link.url"
@@ -673,10 +796,11 @@ const deleteTransaction = (transaction: Transaction) => {
                                         <span v-html="link.label" />
                                     </PaginationLink>
                                 </PaginationItem>
-
-                                <PaginationItem>
-                                    <PaginationNext :href="transactions.links.next" :disabled="!transactions.links.next" />
-                                </PaginationItem>
+                                <PaginationItem
+                                    ><PaginationNext
+                                        :href="transactions.links.next"
+                                        :disabled="!transactions.links.next"
+                                /></PaginationItem>
                             </PaginationContent>
                         </Pagination>
                     </div>

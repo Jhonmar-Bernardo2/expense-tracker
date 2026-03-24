@@ -13,7 +13,7 @@ class UpdateTransactionService
     }
 
     /**
-     * @param  array{category_id: int, type: string, title: string, amount: mixed, description?: ?string, transaction_date: string}  $data
+     * @param  array{department_id: int, category_id: int, type: string, title: string, amount: mixed, description?: ?string, transaction_date: string}  $data
      */
     public function handle(Transaction $transaction, array $data): Transaction
     {

@@ -5,3 +5,4 @@ export * from './navigation';
 export * from './reports';
 export * from './transactions';
 export * from './ui';
+export * from './users';

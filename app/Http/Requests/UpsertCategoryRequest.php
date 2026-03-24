@@ -11,7 +11,7 @@ class UpsertCategoryRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user() !== null;
+        return $this->user()?->isAdmin() ?? false;
     }
 
     protected function prepareForValidation(): void
@@ -35,7 +35,6 @@ class UpsertCategoryRequest extends FormRequest
                 'max:255',
                 Rule::unique('categories', 'name')
                     ->where(fn ($query) => $query
-                        ->where('user_id', $this->user()->id)
                         ->where('type', $this->input('type')))
                     ->ignore($categoryId),
             ],

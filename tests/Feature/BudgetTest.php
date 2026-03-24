@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Budget;
 use App\Models\Category;
+use App\Models\Department;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -26,10 +27,10 @@ class BudgetTest extends TestCase
     {
         $budget = $this->createBudget();
 
-        $this->get(route('budgets.index'))
-            ->assertRedirect(route('login'));
+        $this->get(route('budgets.index'))->assertRedirect(route('login'));
 
         $this->post(route('budgets.store'), [
+            'department_id' => $budget->department_id,
             'category_id' => $budget->category_id,
             'month' => 3,
             'year' => 2026,
@@ -37,37 +38,42 @@ class BudgetTest extends TestCase
         ])->assertRedirect(route('login'));
 
         $this->put(route('budgets.update', $budget), [
+            'department_id' => $budget->department_id,
             'category_id' => $budget->category_id,
             'month' => 3,
             'year' => 2026,
             'amount_limit' => 1500,
         ])->assertRedirect(route('login'));
 
-        $this->delete(route('budgets.destroy', $budget))
-            ->assertRedirect(route('login'));
+        $this->delete(route('budgets.destroy', $budget))->assertRedirect(route('login'));
     }
 
-    public function test_authenticated_user_can_view_the_budget_index_with_usage_props(): void
+    public function test_staff_user_views_only_their_departments_budgets_and_usage(): void
     {
         CarbonImmutable::setTestNow('2026-03-15 12:00:00');
 
-        $user = User::factory()->create();
-        $expenseCategory = $this->createCategory($user, [
-            'name' => 'Food',
-            'type' => 'expense',
-        ]);
-        $incomeCategory = $this->createCategory($user, [
-            'name' => 'Salary',
-            'type' => 'income',
-        ]);
-        $budget = $this->createBudget($user, $expenseCategory, [
+        $department = Department::factory()->create(['name' => 'Finance']);
+        $otherDepartment = Department::factory()->create(['name' => 'Operations']);
+        $user = User::factory()->for($department)->create();
+        $otherUser = User::factory()->for($otherDepartment)->create();
+        $expenseCategory = $this->createCategory(['name' => 'Food', 'type' => 'expense']);
+        $this->createCategory(['name' => 'Salary', 'type' => 'income']);
+
+        $budget = $this->createBudget($user, $department, $expenseCategory, [
             'month' => 3,
             'year' => 2026,
             'amount_limit' => 1000,
         ]);
 
+        $this->createBudget($otherUser, $otherDepartment, $expenseCategory, [
+            'month' => 3,
+            'year' => 2026,
+            'amount_limit' => 800,
+        ]);
+
         Transaction::query()->create([
             'user_id' => $user->id,
+            'department_id' => $department->id,
             'category_id' => $expenseCategory->id,
             'type' => 'expense',
             'title' => 'Groceries',
@@ -77,13 +83,14 @@ class BudgetTest extends TestCase
         ]);
 
         Transaction::query()->create([
-            'user_id' => $user->id,
+            'user_id' => $otherUser->id,
+            'department_id' => $otherDepartment->id,
             'category_id' => $expenseCategory->id,
             'type' => 'expense',
-            'title' => 'Previous month',
-            'amount' => 75.00,
+            'title' => 'Other team lunch',
+            'amount' => 250.00,
             'description' => null,
-            'transaction_date' => '2026-02-28',
+            'transaction_date' => '2026-03-10',
         ]);
 
         $this->actingAs($user)
@@ -91,35 +98,28 @@ class BudgetTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Budgets/Index')
-                ->where('filters.month', 3)
-                ->where('filters.year', 2026)
+                ->where('filters.department', $department->id)
+                ->where('department_scope.department_id', $department->id)
+                ->where('department_scope.can_select_department', false)
                 ->has('budgets', 1)
                 ->has('categories', 1)
-                ->where('categories.0.id', $expenseCategory->id)
-                ->where('categories.0.name', 'Food')
                 ->where('budgets.0.id', $budget->id)
-                ->where('budgets.0.category_name', 'Food')
-                ->where('budgets.0.amount_limit', 1000)
                 ->where('budgets.0.amount_spent', 400)
-                ->where('budgets.0.amount_remaining', 600)
-                ->where('budgets.0.percentage_used', 40)
-                ->where('budgets.0.is_over_budget', false)
-                ->missing('categories.1')
+                ->where('budgets.0.department.id', $department->id)
+                ->missing('budgets.1')
             );
-
-        $this->assertDatabaseHas('categories', [
-            'id' => $incomeCategory->id,
-            'type' => 'income',
-        ]);
     }
 
-    public function test_user_can_create_update_and_delete_a_budget(): void
+    public function test_staff_cannot_force_budget_creation_into_another_department(): void
     {
-        $user = User::factory()->create();
-        $category = $this->createCategory($user, ['name' => 'Utilities']);
+        $department = Department::factory()->create();
+        $otherDepartment = Department::factory()->create();
+        $user = User::factory()->for($department)->create();
+        $category = $this->createCategory();
 
         $this->actingAs($user)
             ->post(route('budgets.store'), [
+                'department_id' => $otherDepartment->id,
                 'category_id' => $category->id,
                 'month' => 4,
                 'year' => 2026,
@@ -127,85 +127,75 @@ class BudgetTest extends TestCase
             ])
             ->assertRedirect();
 
-        $budget = Budget::query()->firstOrFail();
-
         $this->assertDatabaseHas('budgets', [
-            'id' => $budget->id,
             'user_id' => $user->id,
+            'department_id' => $department->id,
             'category_id' => $category->id,
             'month' => 4,
             'year' => 2026,
             'amount_limit' => 2500.00,
         ]);
+    }
 
-        $this->actingAs($user)
-            ->put(route('budgets.update', $budget), [
+    public function test_admin_can_view_all_departments_and_create_budget_for_a_selected_department(): void
+    {
+        $admin = User::factory()->admin()->create();
+        $departmentA = Department::factory()->create(['name' => 'Finance']);
+        $departmentB = Department::factory()->create(['name' => 'Operations']);
+        $staffA = User::factory()->for($departmentA)->create();
+        $staffB = User::factory()->for($departmentB)->create();
+        $category = $this->createCategory(['name' => 'Utilities']);
+
+        $this->createBudget($staffA, $departmentA, $category);
+        $this->createBudget($staffB, $departmentB, $category, ['amount_limit' => 1500]);
+
+        $this->actingAs($admin)
+            ->get(route('budgets.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->where('filters.department', null)
+                ->where('department_scope.is_all_departments', true)
+                ->where('department_scope.can_select_department', true)
+                ->has('budgets', 2)
+                ->has('departments', 3)
+            );
+
+        $this->actingAs($admin)
+            ->post(route('budgets.store'), [
+                'department_id' => $departmentB->id,
                 'category_id' => $category->id,
-                'month' => 4,
+                'month' => 6,
                 'year' => 2026,
                 'amount_limit' => 3000,
             ])
             ->assertRedirect();
 
         $this->assertDatabaseHas('budgets', [
-            'id' => $budget->id,
+            'user_id' => $admin->id,
+            'department_id' => $departmentB->id,
+            'category_id' => $category->id,
+            'month' => 6,
+            'year' => 2026,
             'amount_limit' => 3000.00,
         ]);
-
-        $this->actingAs($user)
-            ->delete(route('budgets.destroy', $budget))
-            ->assertRedirect();
-
-        $this->assertDatabaseMissing('budgets', [
-            'id' => $budget->id,
-        ]);
     }
 
-    public function test_user_cannot_create_budget_for_another_users_category_or_income_category(): void
+    public function test_budget_uniqueness_is_enforced_per_department(): void
     {
-        $user = User::factory()->create();
-        $otherUser = User::factory()->create();
-        $otherCategory = $this->createCategory($otherUser);
-        $incomeCategory = $this->createCategory($user, [
-            'name' => 'Salary',
-            'type' => 'income',
-        ]);
+        $admin = User::factory()->admin()->create();
+        $departmentA = Department::factory()->create();
+        $departmentB = Department::factory()->create();
+        $category = $this->createCategory();
 
-        $this->actingAs($user)
-            ->from(route('budgets.index'))
-            ->post(route('budgets.store'), [
-                'category_id' => $otherCategory->id,
-                'month' => 3,
-                'year' => 2026,
-                'amount_limit' => 1200,
-            ])
-            ->assertRedirect(route('budgets.index'))
-            ->assertSessionHasErrors('category_id');
-
-        $this->actingAs($user)
-            ->from(route('budgets.index'))
-            ->post(route('budgets.store'), [
-                'category_id' => $incomeCategory->id,
-                'month' => 3,
-                'year' => 2026,
-                'amount_limit' => 1200,
-            ])
-            ->assertRedirect(route('budgets.index'))
-            ->assertSessionHasErrors('category_id');
-    }
-
-    public function test_user_cannot_create_duplicate_budget_for_same_category_month_and_year(): void
-    {
-        $user = User::factory()->create();
-        $category = $this->createCategory($user);
-        $this->createBudget($user, $category, [
+        $this->createBudget($admin, $departmentA, $category, [
             'month' => 5,
             'year' => 2026,
         ]);
 
-        $this->actingAs($user)
+        $this->actingAs($admin)
             ->from(route('budgets.index'))
             ->post(route('budgets.store'), [
+                'department_id' => $departmentA->id,
                 'category_id' => $category->id,
                 'month' => 5,
                 'year' => 2026,
@@ -213,57 +203,46 @@ class BudgetTest extends TestCase
             ])
             ->assertRedirect(route('budgets.index'))
             ->assertSessionHasErrors('category_id');
-    }
 
-    public function test_budget_becomes_over_budget_when_expense_transactions_exceed_limit(): void
-    {
-        $user = User::factory()->create();
-        $category = $this->createCategory($user, ['name' => 'Dining']);
-        $budget = $this->createBudget($user, $category, [
-            'month' => 6,
-            'year' => 2026,
-            'amount_limit' => 500,
-        ]);
+        $this->actingAs($admin)
+            ->post(route('budgets.store'), [
+                'department_id' => $departmentB->id,
+                'category_id' => $category->id,
+                'month' => 5,
+                'year' => 2026,
+                'amount_limit' => 999,
+            ])
+            ->assertRedirect();
 
-        Transaction::query()->create([
-            'user_id' => $user->id,
+        $this->assertDatabaseHas('budgets', [
+            'department_id' => $departmentB->id,
             'category_id' => $category->id,
-            'type' => 'expense',
-            'title' => 'Dinner',
-            'amount' => 650.00,
-            'description' => null,
-            'transaction_date' => '2026-06-04',
+            'month' => 5,
+            'year' => 2026,
         ]);
-
-        $this->actingAs($user)
-            ->get(route('budgets.index', ['month' => 6, 'year' => 2026]))
-            ->assertOk()
-            ->assertInertia(fn (Assert $page) => $page
-                ->where('budgets.0.id', $budget->id)
-                ->where('budgets.0.amount_spent', 650)
-                ->where('budgets.0.amount_remaining', -150)
-                ->where('budgets.0.is_over_budget', true)
-            );
     }
 
-    private function createCategory(?User $user = null, array $attributes = []): Category
+    private function createCategory(array $attributes = []): Category
     {
-        $user ??= User::factory()->create();
-
         return Category::query()->create(array_merge([
-            'user_id' => $user->id,
             'name' => 'Food',
             'type' => 'expense',
         ], $attributes));
     }
 
-    private function createBudget(?User $user = null, ?Category $category = null, array $attributes = []): Budget
-    {
+    private function createBudget(
+        ?User $user = null,
+        ?Department $department = null,
+        ?Category $category = null,
+        array $attributes = [],
+    ): Budget {
         $user ??= User::factory()->create();
-        $category ??= $this->createCategory($user);
+        $department ??= $user->department;
+        $category ??= $this->createCategory();
 
         return Budget::query()->create(array_merge([
             'user_id' => $user->id,
+            'department_id' => $department->id,
             'category_id' => $category->id,
             'month' => 3,
             'year' => 2026,

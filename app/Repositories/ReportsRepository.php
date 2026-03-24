@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Enums\TransactionType;
 use App\Models\Transaction;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class ReportsRepository
@@ -12,17 +13,15 @@ class ReportsRepository
     /**
      * @return array{income: float, expenses: float, balance: float}
      */
-    public function getMonthlyTotals(int $userId, int $month, int $year): array
+    public function getMonthlyTotals(?int $departmentId, int $month, int $year): array
     {
-        $income = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $income = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Income->value)
             ->whereMonth('transaction_date', $month)
             ->whereYear('transaction_date', $year)
             ->sum('amount');
 
-        $expenses = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $expenses = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Expense->value)
             ->whereMonth('transaction_date', $month)
             ->whereYear('transaction_date', $year)
@@ -38,16 +37,14 @@ class ReportsRepository
     /**
      * @return array{income: float, expenses: float, balance: float}
      */
-    public function getYearlyTotals(int $userId, int $year): array
+    public function getYearlyTotals(?int $departmentId, int $year): array
     {
-        $income = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $income = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Income->value)
             ->whereYear('transaction_date', $year)
             ->sum('amount');
 
-        $expenses = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $expenses = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Expense->value)
             ->whereYear('transaction_date', $year)
             ->sum('amount');
@@ -62,15 +59,17 @@ class ReportsRepository
     /**
      * @return array<int, array{category_id: int, category_name: string, total: float}>
      */
-    public function getExpensesByCategory(int $userId, int $month, int $year): array
+    public function getExpensesByCategory(?int $departmentId, int $month, int $year): array
     {
         return Transaction::query()
-            ->where('transactions.user_id', $userId)
+            ->when(
+                $departmentId !== null,
+                fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
+            )
             ->where('transactions.type', TransactionType::Expense->value)
             ->whereMonth('transactions.transaction_date', $month)
             ->whereYear('transactions.transaction_date', $year)
             ->join('categories', 'categories.id', '=', 'transactions.category_id')
-            ->where('categories.user_id', $userId)
             ->groupBy('transactions.category_id', 'categories.name')
             ->orderByDesc('total')
             ->selectRaw('transactions.category_id as category_id, categories.name as category_name, SUM(transactions.amount) as total')
@@ -86,12 +85,14 @@ class ReportsRepository
     /**
      * @return array<int, array{month: int, income: float, expenses: float}>
      */
-    public function getIncomeVsExpensesByMonth(int $userId, int $year): array
+    public function getIncomeVsExpensesByMonth(?int $departmentId, int $year): array
     {
         $rows = Transaction::query()
-            ->where('transactions.user_id', $userId)
+            ->when(
+                $departmentId !== null,
+                fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
+            )
             ->whereYear('transactions.transaction_date', $year)
-            ->whereHas('category', fn ($query) => $query->where('user_id', $userId))
             ->groupByRaw('EXTRACT(MONTH FROM transactions.transaction_date), transactions.type')
             ->selectRaw('EXTRACT(MONTH FROM transactions.transaction_date) as month, transactions.type as type, SUM(transactions.amount) as total')
             ->get();
@@ -132,14 +133,16 @@ class ReportsRepository
      *
      * @return array<int, array{date: string, expenses: float}>
      */
-    public function getSpendingTrend(int $userId, int $month, int $year): array
+    public function getSpendingTrend(?int $departmentId, int $month, int $year): array
     {
         $rows = Transaction::query()
-            ->where('transactions.user_id', $userId)
+            ->when(
+                $departmentId !== null,
+                fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
+            )
             ->where('transactions.type', TransactionType::Expense->value)
             ->whereMonth('transactions.transaction_date', $month)
             ->whereYear('transactions.transaction_date', $year)
-            ->whereHas('category', fn ($query) => $query->where('user_id', $userId))
             ->groupBy('transactions.transaction_date')
             ->orderBy('transactions.transaction_date')
             ->selectRaw('transactions.transaction_date as date, SUM(transactions.amount) as total')
@@ -170,10 +173,10 @@ class ReportsRepository
     /**
      * @return array<int, int>
      */
-    public function getDistinctYears(int $userId): array
+    public function getDistinctYears(?int $departmentId): array
     {
         return Transaction::query()
-            ->where('user_id', $userId)
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
             ->selectRaw('DISTINCT EXTRACT(YEAR FROM transaction_date) as year')
             ->orderByDesc('year')
             ->pluck('year')
@@ -204,5 +207,11 @@ class ReportsRepository
         }
 
         return null;
+    }
+
+    private function baseTransactionQuery(?int $departmentId): Builder
+    {
+        return Transaction::query()
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId));
     }
 }

@@ -13,7 +13,7 @@ class UpdateBudgetService
     }
 
     /**
-     * @param  array{category_id: int, month: int, year: int, amount_limit: mixed}  $data
+     * @param  array{department_id: int, category_id: int, month: int, year: int, amount_limit: mixed}  $data
      */
     public function handle(Budget $budget, array $data): Budget
     {

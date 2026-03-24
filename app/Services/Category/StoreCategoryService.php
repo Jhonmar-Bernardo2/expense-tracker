@@ -15,8 +15,8 @@ class StoreCategoryService
     /**
      * @param  array{name: string, type: string}  $data
      */
-    public function handle(int $userId, array $data): Category
+    public function handle(array $data): Category
     {
-        return $this->categoryRepository->createForUser($userId, $data);
+        return $this->categoryRepository->create($data);
     }
 }

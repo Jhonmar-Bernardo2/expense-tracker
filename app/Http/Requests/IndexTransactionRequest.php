@@ -20,12 +20,11 @@ class IndexTransactionRequest extends FormRequest
     {
         return [
             'type' => ['nullable', Rule::enum(TransactionType::class)],
+            'department' => ['nullable', 'integer', Rule::exists('departments', 'id')],
             'category' => [
                 'nullable',
                 'integer',
-                Rule::exists('categories', 'id')->where(
-                    fn ($query) => $query->where('user_id', $this->user()->id)
-                ),
+                Rule::exists('categories', 'id'),
             ],
             'month' => ['nullable', 'integer', 'between:1,12'],
             'year' => ['nullable', 'integer', 'between:1900,2100'],

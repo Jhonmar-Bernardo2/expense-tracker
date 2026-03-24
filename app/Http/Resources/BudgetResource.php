@@ -22,6 +22,7 @@ class BudgetResource extends JsonResource
 
         return [
             'id' => $this->id,
+            'department_id' => $this->department_id,
             'category_id' => $this->category_id,
             'category_name' => (string) ($this->category_name ?? $this->category?->name ?? ''),
             'month' => (int) $this->month,
@@ -31,6 +32,10 @@ class BudgetResource extends JsonResource
             'amount_remaining' => $amountRemaining,
             'percentage_used' => $percentageUsed,
             'is_over_budget' => $amountSpent > $amountLimit,
+            'department' => $this->whenLoaded('department', fn () => [
+                'id' => $this->department->id,
+                'name' => $this->department->name,
+            ]),
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
         ];

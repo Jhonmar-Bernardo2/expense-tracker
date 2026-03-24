@@ -16,6 +16,7 @@ class Transaction extends Model
      */
     protected $fillable = [
         'user_id',
+        'department_id',
         'category_id',
         'type',
         'title',
@@ -41,9 +42,13 @@ class Transaction extends Model
         return $this->belongsTo(User::class);
     }
 
+    public function department(): BelongsTo
+    {
+        return $this->belongsTo(Department::class);
+    }
+
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 }
-

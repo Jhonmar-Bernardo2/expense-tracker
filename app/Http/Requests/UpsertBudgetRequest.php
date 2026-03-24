@@ -19,18 +19,25 @@ class UpsertBudgetRequest extends FormRequest
     public function rules(): array
     {
         $budgetId = $this->route('budget');
+        $departmentId = $this->user()->isAdmin()
+            ? $this->integer('department_id')
+            : (int) $this->user()->department_id;
 
         return [
+            'department_id' => [
+                $this->user()->isAdmin() ? 'required' : 'nullable',
+                'integer',
+                Rule::exists('departments', 'id'),
+            ],
             'category_id' => [
                 'required',
                 'integer',
                 Rule::exists('categories', 'id')
                     ->where(fn ($query) => $query
-                        ->where('user_id', $this->user()->id)
                         ->where('type', TransactionType::Expense->value)),
                 Rule::unique('budgets')
                     ->where(fn ($query) => $query
-                        ->where('user_id', $this->user()->id)
+                        ->where('department_id', $departmentId)
                         ->where('month', $this->input('month'))
                         ->where('year', $this->input('year')))
                     ->ignore($budgetId),

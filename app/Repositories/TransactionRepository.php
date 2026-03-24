@@ -4,6 +4,8 @@ namespace App\Repositories;
 
 use App\Enums\TransactionType;
 use App\Models\Transaction;
+use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 
 class TransactionRepository
@@ -11,14 +13,13 @@ class TransactionRepository
     /**
      * @param  array{type?: ?TransactionType, category_id?: ?int, month?: ?int, year?: ?int, search?: ?string}  $filters
      */
-    public function getForIndex(int $userId, array $filters, int $perPage = 10): LengthAwarePaginator
+    public function getForIndex(?int $departmentId, array $filters, int $perPage = 10): LengthAwarePaginator
     {
         $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
 
         return Transaction::query()
-            ->where('user_id', $userId)
-            ->whereHas('category', fn ($query) => $query->where('user_id', $userId))
-            ->with('category')
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
+            ->with(['category', 'department'])
             ->when($filters['type'] ?? null, fn ($query, TransactionType $type) => $query->where('type', $type->value))
             ->when($filters['category_id'] ?? null, fn ($query, int $categoryId) => $query->where('category_id', $categoryId))
             ->when($filters['month'] ?? null, fn ($query, int $month) => $query->whereMonth('transaction_date', $month))
@@ -35,20 +36,24 @@ class TransactionRepository
             ->withQueryString();
     }
 
-    public function findForUserOrFail(int $userId, int $transactionId): Transaction
+    public function findForViewerOrFail(User $user, int $transactionId): Transaction
     {
         return Transaction::query()
-            ->where('user_id', $userId)
+            ->when(
+                ! $user->isAdmin(),
+                fn (Builder $query) => $query->where('department_id', $user->department_id),
+            )
             ->findOrFail($transactionId);
     }
 
     /**
      * @param  array{category_id: int, type: string, title: string, amount: mixed, description?: ?string, transaction_date: string}  $data
      */
-    public function createForUser(int $userId, array $data): Transaction
+    public function create(User $user, int $departmentId, array $data): Transaction
     {
         return Transaction::query()->create([
-            'user_id' => $userId,
+            'user_id' => $user->id,
+            'department_id' => $departmentId,
             'category_id' => $data['category_id'],
             'type' => $data['type'],
             'title' => $data['title'],
@@ -64,6 +69,7 @@ class TransactionRepository
     public function update(Transaction $transaction, array $data): Transaction
     {
         $transaction->update([
+            'department_id' => $data['department_id'],
             'category_id' => $data['category_id'],
             'type' => $data['type'],
             'title' => $data['title'],
@@ -83,10 +89,10 @@ class TransactionRepository
     /**
      * @return array<int, int>
      */
-    public function getDistinctYears(int $userId): array
+    public function getDistinctYears(?int $departmentId): array
     {
         return Transaction::query()
-            ->where('user_id', $userId)
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
             ->selectRaw('DISTINCT EXTRACT(YEAR FROM transaction_date) as year')
             ->orderByDesc('year')
             ->pluck('year')

@@ -31,7 +31,7 @@ class CategoryController extends Controller
 
         return Inertia::render('Categories/Index', [
             'categories' => CategoryResource::collection(
-                $this->categoryRepository->getForIndex($request->user()->id, $type)
+                $this->categoryRepository->getForIndex($type)
             ),
             'filters' => [
                 'type' => $type?->value,
@@ -47,7 +47,7 @@ class CategoryController extends Controller
         UpsertCategoryRequest $request,
         StoreCategoryService $storeCategoryService,
     ): RedirectResponse {
-        $storeCategoryService->handle($request->user()->id, $request->validated());
+        $storeCategoryService->handle($request->validated());
 
         return back()->with('success', 'Category created.');
     }
@@ -57,7 +57,7 @@ class CategoryController extends Controller
         int $category,
         UpdateCategoryService $updateCategoryService,
     ): RedirectResponse {
-        $existingCategory = $this->categoryRepository->findForUserOrFail($request->user()->id, $category);
+        $existingCategory = $this->categoryRepository->findOrFail($category);
 
         $updateCategoryService->handle($existingCategory, $request->validated());
 
@@ -66,7 +66,7 @@ class CategoryController extends Controller
 
     public function destroy(Request $request, int $category): RedirectResponse
     {
-        $existingCategory = $this->categoryRepository->findForUserOrFail($request->user()->id, $category);
+        $existingCategory = $this->categoryRepository->findOrFail($category);
 
         if ($this->categoryRepository->hasRelatedRecords($existingCategory)) {
             return back()->with(

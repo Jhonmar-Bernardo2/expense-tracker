@@ -11,10 +11,9 @@ class CategoryRepository
     /**
      * @return Collection<int, Category>
      */
-    public function getForIndex(int $userId, ?TransactionType $type = null): Collection
+    public function getForIndex(?TransactionType $type = null): Collection
     {
         return Category::query()
-            ->where('user_id', $userId)
             ->when($type, fn ($query) => $query->where('type', $type->value))
             ->withCount(['transactions', 'budgets'])
             ->orderBy('type')
@@ -22,20 +21,17 @@ class CategoryRepository
             ->get();
     }
 
-    public function findForUserOrFail(int $userId, int $categoryId): Category
+    public function findOrFail(int $categoryId): Category
     {
-        return Category::query()
-            ->where('user_id', $userId)
-            ->findOrFail($categoryId);
+        return Category::query()->findOrFail($categoryId);
     }
 
     /**
      * @return Collection<int, Category>
      */
-    public function getExpenseOptions(int $userId): Collection
+    public function getExpenseOptions(): Collection
     {
         return Category::query()
-            ->where('user_id', $userId)
             ->where('type', TransactionType::Expense->value)
             ->orderBy('name')
             ->get([
@@ -48,15 +44,11 @@ class CategoryRepository
     /**
      * @param  array{name: string, type: string}  $data
      */
-    public function createForUser(int $userId, array $data): Category
+    public function create(array $data): Category
     {
         $payload = $this->normalizePayload($data);
 
-        return Category::query()->create([
-            'user_id' => $userId,
-            'name' => $payload['name'],
-            'type' => $payload['type'],
-        ]);
+        return Category::query()->create($payload);
     }
 
     /**

@@ -19,6 +19,11 @@ class UpsertTransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'department_id' => [
+                $this->user()->isAdmin() ? 'required' : 'nullable',
+                'integer',
+                Rule::exists('departments', 'id'),
+            ],
             'type' => [
                 'required',
                 Rule::enum(TransactionType::class),
@@ -28,7 +33,6 @@ class UpsertTransactionRequest extends FormRequest
                 'integer',
                 Rule::exists('categories', 'id')
                     ->where(fn ($query) => $query
-                        ->where('user_id', $this->user()->id)
                         ->where('type', $this->input('type'))),
             ],
             'title' => [

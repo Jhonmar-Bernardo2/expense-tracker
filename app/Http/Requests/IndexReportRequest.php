@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class IndexReportRequest extends FormRequest
 {
@@ -17,6 +18,7 @@ class IndexReportRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'department' => ['nullable', 'integer', Rule::exists('departments', 'id')],
             'month' => ['nullable', 'integer', 'between:1,12'],
             'year' => ['nullable', 'integer', 'between:1900,2100'],
         ];

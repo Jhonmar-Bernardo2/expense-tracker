@@ -5,6 +5,7 @@ namespace App\Repositories;
 use App\Enums\TransactionType;
 use App\Models\Transaction;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class DashboardRepository
@@ -12,15 +13,13 @@ class DashboardRepository
     /**
      * @return array{income: float, expenses: float, balance: float}
      */
-    public function getTotals(int $userId): array
+    public function getTotals(?int $departmentId): array
     {
-        $income = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $income = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Income->value)
             ->sum('amount');
 
-        $expenses = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $expenses = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Expense->value)
             ->sum('amount');
 
@@ -34,17 +33,15 @@ class DashboardRepository
     /**
      * @return array{month: int, year: int, income: float, expenses: float, balance: float}
      */
-    public function getMonthSummary(int $userId, CarbonImmutable $date): array
+    public function getMonthSummary(?int $departmentId, CarbonImmutable $date): array
     {
-        $income = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $income = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Income->value)
             ->whereMonth('transaction_date', $date->month)
             ->whereYear('transaction_date', $date->year)
             ->sum('amount');
 
-        $expenses = (float) Transaction::query()
-            ->where('user_id', $userId)
+        $expenses = (float) $this->baseTransactionQuery($departmentId)
             ->where('type', TransactionType::Expense->value)
             ->whereMonth('transaction_date', $date->month)
             ->whereYear('transaction_date', $date->year)
@@ -62,11 +59,10 @@ class DashboardRepository
     /**
      * @return Collection<int, Transaction>
      */
-    public function getRecentTransactions(int $userId, int $limit = 8): Collection
+    public function getRecentTransactions(?int $departmentId, int $limit = 8): Collection
     {
-        return Transaction::query()
-            ->where('user_id', $userId)
-            ->with('category')
+        return $this->baseTransactionQuery($departmentId)
+            ->with(['category', 'department'])
             ->orderByDesc('transaction_date')
             ->orderByDesc('id')
             ->limit($limit)
@@ -76,15 +72,17 @@ class DashboardRepository
     /**
      * @return array<int, array{category_id: int, category_name: string, total: float}>
      */
-    public function getCurrentMonthExpensesByCategory(int $userId, CarbonImmutable $date): array
+    public function getCurrentMonthExpensesByCategory(?int $departmentId, CarbonImmutable $date): array
     {
         return Transaction::query()
-            ->where('transactions.user_id', $userId)
+            ->when(
+                $departmentId !== null,
+                fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
+            )
             ->where('transactions.type', TransactionType::Expense->value)
             ->whereMonth('transactions.transaction_date', $date->month)
             ->whereYear('transactions.transaction_date', $date->year)
             ->join('categories', 'categories.id', '=', 'transactions.category_id')
-            ->where('categories.user_id', $userId)
             ->groupBy('transactions.category_id', 'categories.name')
             ->orderByDesc('total')
             ->selectRaw('transactions.category_id as category_id, categories.name as category_name, SUM(transactions.amount) as total')
@@ -100,12 +98,14 @@ class DashboardRepository
     /**
      * @return array<int, array{month: int, income: float, expenses: float}>
      */
-    public function getIncomeVsExpensesByMonth(int $userId, int $year): array
+    public function getIncomeVsExpensesByMonth(?int $departmentId, int $year): array
     {
         $rows = Transaction::query()
-            ->where('transactions.user_id', $userId)
+            ->when(
+                $departmentId !== null,
+                fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
+            )
             ->whereYear('transactions.transaction_date', $year)
-            ->whereHas('category', fn ($query) => $query->where('user_id', $userId))
             ->groupByRaw('EXTRACT(MONTH FROM transactions.transaction_date), transactions.type')
             ->selectRaw('EXTRACT(MONTH FROM transactions.transaction_date) as month, transactions.type as type, SUM(transactions.amount) as total')
             ->get();
@@ -152,5 +152,11 @@ class DashboardRepository
         }
 
         return null;
+    }
+
+    private function baseTransactionQuery(?int $departmentId): Builder
+    {
+        return Transaction::query()
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId));
     }
 }

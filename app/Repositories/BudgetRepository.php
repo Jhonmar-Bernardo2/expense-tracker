@@ -5,7 +5,9 @@ namespace App\Repositories;
 use App\Enums\TransactionType;
 use App\Models\Budget;
 use App\Models\Transaction;
+use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class BudgetRepository
@@ -13,11 +15,12 @@ class BudgetRepository
     /**
      * @return Collection<int, Budget>
      */
-    public function getForIndex(int $userId, int $month, int $year): Collection
+    public function getForIndex(?int $departmentId, int $month, int $year): Collection
     {
-        return $this->queryWithUsage($userId)
+        return $this->queryWithUsage($departmentId)
             ->where('budgets.month', $month)
             ->where('budgets.year', $year)
+            ->orderBy('budgets.department_id')
             ->orderBy('categories.name')
             ->get();
     }
@@ -25,29 +28,34 @@ class BudgetRepository
     /**
      * @return Collection<int, Budget>
      */
-    public function getForUser(int $userId): Collection
+    public function getAccessible(?int $departmentId): Collection
     {
-        return $this->queryWithUsage($userId)
+        return $this->queryWithUsage($departmentId)
             ->orderByDesc('budgets.year')
             ->orderByDesc('budgets.month')
+            ->orderBy('budgets.department_id')
             ->orderBy('categories.name')
             ->get();
     }
 
-    public function findForUserOrFail(int $userId, int $budgetId): Budget
+    public function findForViewerOrFail(User $user, int $budgetId): Budget
     {
         return Budget::query()
-            ->where('user_id', $userId)
+            ->when(
+                ! $user->isAdmin(),
+                fn (Builder $query) => $query->where('department_id', $user->department_id),
+            )
             ->findOrFail($budgetId);
     }
 
     /**
      * @param  array{category_id: int, month: int, year: int, amount_limit: mixed}  $data
      */
-    public function createForUser(int $userId, array $data): Budget
+    public function create(User $user, int $departmentId, array $data): Budget
     {
         return Budget::query()->create([
-            'user_id' => $userId,
+            'user_id' => $user->id,
+            'department_id' => $departmentId,
             'category_id' => $data['category_id'],
             'month' => $data['month'],
             'year' => $data['year'],
@@ -61,6 +69,7 @@ class BudgetRepository
     public function update(Budget $budget, array $data): Budget
     {
         $budget->update([
+            'department_id' => $data['department_id'],
             'category_id' => $data['category_id'],
             'month' => $data['month'],
             'year' => $data['year'],
@@ -78,9 +87,9 @@ class BudgetRepository
     /**
      * @return array{total_budgeted: float, total_spent: float, total_remaining: float, categories_over_budget: int}
      */
-    public function getMonthlySummary(int $userId, CarbonImmutable $date): array
+    public function getMonthlySummary(?int $departmentId, CarbonImmutable $date): array
     {
-        $budgets = $this->getForIndex($userId, $date->month, $date->year);
+        $budgets = $this->getForIndex($departmentId, $date->month, $date->year);
 
         $totalBudgeted = round($budgets->sum(fn (Budget $budget) => (float) $budget->amount_limit), 2);
         $totalSpent = round($budgets->sum(fn (Budget $budget) => (float) ($budget->amount_spent ?? 0)), 2);
@@ -99,15 +108,15 @@ class BudgetRepository
     /**
      * @return array<int, int>
      */
-    public function getYearOptions(int $userId, int $currentYear): array
+    public function getYearOptions(?int $departmentId, int $currentYear): array
     {
         $budgetYears = Budget::query()
-            ->where('user_id', $userId)
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
             ->pluck('year')
             ->map(fn ($year) => (int) $year);
 
         $transactionYears = Transaction::query()
-            ->where('user_id', $userId)
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
             ->selectRaw('DISTINCT EXTRACT(YEAR FROM transaction_date) as year')
             ->pluck('year')
             ->map(fn ($year) => (int) $year);
@@ -121,29 +130,30 @@ class BudgetRepository
             ->all();
     }
 
-    private function queryWithUsage(int $userId)
+    private function queryWithUsage(?int $departmentId): Builder
     {
         return Budget::query()
-            ->where('budgets.user_id', $userId)
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('budgets.department_id', $departmentId))
             ->join('categories', 'categories.id', '=', 'budgets.category_id')
-            ->where('categories.user_id', $userId)
             ->where('categories.type', TransactionType::Expense->value)
-            ->leftJoinSub($this->usageSubquery($userId), 'budget_usage', function ($join) {
+            ->leftJoinSub($this->usageSubquery($departmentId), 'budget_usage', function ($join) {
                 $join->on('budget_usage.category_id', '=', 'budgets.category_id')
+                    ->on('budget_usage.department_id', '=', 'budgets.department_id')
                     ->on('budget_usage.usage_month', '=', 'budgets.month')
                     ->on('budget_usage.usage_year', '=', 'budgets.year');
             })
             ->select('budgets.*')
             ->selectRaw('categories.name as category_name, COALESCE(budget_usage.amount_spent, 0) as amount_spent')
-            ->with('category');
+            ->with(['category', 'department']);
     }
 
-    private function usageSubquery(int $userId)
+    private function usageSubquery(?int $departmentId): Builder
     {
         return Transaction::query()
-            ->selectRaw('category_id, EXTRACT(MONTH FROM transaction_date) as usage_month, EXTRACT(YEAR FROM transaction_date) as usage_year, SUM(amount) as amount_spent')
-            ->where('user_id', $userId)
+            ->selectRaw('department_id, category_id, EXTRACT(MONTH FROM transaction_date) as usage_month, EXTRACT(YEAR FROM transaction_date) as usage_year, SUM(amount) as amount_spent')
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
             ->where('type', TransactionType::Expense->value)
+            ->groupBy('department_id')
             ->groupBy('category_id')
             ->groupByRaw('EXTRACT(MONTH FROM transaction_date), EXTRACT(YEAR FROM transaction_date)');
     }
