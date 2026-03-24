@@ -71,7 +71,6 @@ return new class extends Migration
                 if (! $hasTransactionOriginApprovalVoucherId) {
                     $table->foreignId('origin_approval_voucher_id')
                         ->nullable()
-                        ->after('voucher_id')
                         ->constrained('approval_vouchers')
                         ->nullOnDelete();
                 }

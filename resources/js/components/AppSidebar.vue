@@ -34,7 +34,6 @@ import { index as departments } from '@/routes/departments';
 import { index as reports } from '@/routes/reports';
 import { index as transactions } from '@/routes/transactions';
 import { index as users } from '@/routes/users';
-import { index as vouchers } from '@/routes/vouchers';
 import type { NavItem, User } from '@/types';
 
 const page = usePage();
@@ -55,11 +54,6 @@ const mainNavItems: NavItem[] = [
     {
         title: 'Approval Vouchers',
         href: approvalVouchers(),
-        icon: FileText,
-    },
-    {
-        title: 'Cash Vouchers',
-        href: vouchers(),
         icon: FileText,
     },
     {

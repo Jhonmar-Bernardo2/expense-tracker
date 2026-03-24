@@ -18,7 +18,6 @@ class Transaction extends Model
     protected $fillable = [
         'user_id',
         'department_id',
-        'voucher_id',
         'origin_approval_voucher_id',
         'category_id',
         'type',
@@ -59,11 +58,6 @@ class Transaction extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
-    }
-
-    public function voucher(): BelongsTo
-    {
-        return $this->belongsTo(Voucher::class);
     }
 
     public function originApprovalVoucher(): BelongsTo

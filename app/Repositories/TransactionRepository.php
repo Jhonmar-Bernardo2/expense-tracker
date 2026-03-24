@@ -53,14 +53,12 @@ class TransactionRepository
         User $user,
         int $departmentId,
         array $data,
-        ?int $voucherId = null,
         ?int $originApprovalVoucherId = null,
     ): Transaction
     {
         return Transaction::query()->create([
             'user_id' => $user->id,
             'department_id' => $departmentId,
-            'voucher_id' => $voucherId,
             'origin_approval_voucher_id' => $originApprovalVoucherId,
             'category_id' => $data['category_id'],
             'type' => $data['type'],

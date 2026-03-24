@@ -15,7 +15,7 @@ class CategoryRepository
     {
         return Category::query()
             ->when($type, fn ($query) => $query->where('type', $type->value))
-            ->withCount(['transactions', 'budgets', 'voucherItems'])
+            ->withCount(['transactions', 'budgets'])
             ->orderBy('type')
             ->orderBy('name')
             ->get();
@@ -69,8 +69,7 @@ class CategoryRepository
     public function hasRelatedRecords(Category $category): bool
     {
         return $category->transactions()->exists()
-            || $category->budgets()->exists()
-            || $category->voucherItems()->exists();
+            || $category->budgets()->exists();
     }
 
     public function delete(Category $category): void

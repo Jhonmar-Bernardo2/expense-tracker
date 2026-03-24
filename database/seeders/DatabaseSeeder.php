@@ -16,10 +16,10 @@ class DatabaseSeeder extends Seeder
     {
         $department = Department::query()->firstOrCreate(
             ['name' => env('SYSTEM_ADMIN_DEPARTMENT', 'General')],
-            ['description' => 'Protected developer account department.'],
+            ['description' => 'System administrator department.'],
         );
 
-        $user = User::query()->updateOrCreate(
+        User::query()->updateOrCreate(
             ['email' => env('SYSTEM_ADMIN_EMAIL', 'superadmin@gmail.com')],
             [
                 'name' => env('SYSTEM_ADMIN_NAME', 'Super Admin'),
@@ -31,9 +31,5 @@ class DatabaseSeeder extends Seeder
                 'email_verified_at' => now(),
             ]
         );
-
-        $this->callWith(DemoSeeder::class, [
-            'userId' => $user->id,
-        ]);
     }
 }

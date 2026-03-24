@@ -11,14 +11,6 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Cash voucher module removed. Existing databases are cleaned up by a later migration.
-    }
-
-    /**
-     * Reverse the migrations.
-     */
-    public function down(): void
-    {
         if (Schema::hasColumn('transactions', 'voucher_id')) {
             Schema::table('transactions', function (Blueprint $table) {
                 $table->dropConstrainedForeignId('voucher_id');
@@ -29,5 +21,13 @@ return new class extends Migration
         Schema::dropIfExists('voucher_attachments');
         Schema::dropIfExists('voucher_items');
         Schema::dropIfExists('vouchers');
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        throw new \RuntimeException('Cash voucher module removal cannot be rolled back automatically.');
     }
 };

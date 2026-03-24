@@ -148,7 +148,7 @@ class DepartmentTest extends TestCase
         ]);
     }
 
-    public function test_admin_cannot_delete_department_that_has_assigned_users(): void
+    public function test_admin_cannot_delete_department_that_has_assigned_users_or_financial_records(): void
     {
         $department = Department::factory()->create([
             'name' => 'Finance',
@@ -161,7 +161,7 @@ class DepartmentTest extends TestCase
             ->from(route('departments.index'))
             ->delete(route('departments.destroy', $department))
             ->assertRedirect(route('departments.index'))
-            ->assertSessionHas('error', 'This department cannot be deleted because it still has assigned users.');
+            ->assertSessionHas('error', 'This department cannot be deleted because it still has assigned users or financial records.');
 
         $this->assertDatabaseHas('departments', [
             'id' => $department->id,

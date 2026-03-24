@@ -17,7 +17,6 @@ class TransactionResource extends JsonResource
             'id' => $this->id,
             'user_id' => $this->user_id,
             'department_id' => $this->department_id,
-            'voucher_id' => $this->voucher_id,
             'origin_approval_voucher_id' => $this->origin_approval_voucher_id,
             'voided_by_approval_voucher_id' => $this->voided_by_approval_voucher_id,
             'category_id' => $this->category_id,

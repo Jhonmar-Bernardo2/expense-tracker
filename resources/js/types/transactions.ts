@@ -13,7 +13,6 @@ export type Transaction = {
     id: number;
     user_id: number;
     department_id: number;
-    voucher_id: number | null;
     origin_approval_voucher_id: number | null;
     voided_by_approval_voucher_id: number | null;
     category_id: number;

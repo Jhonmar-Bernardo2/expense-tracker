@@ -79,7 +79,6 @@ class ApproveApprovalVoucherService
                 $approvalVoucher->requestedBy,
                 (int) $payload['department_id'],
                 $payload,
-                null,
                 $approvalVoucher->id,
             )->id,
             ApprovalVoucherAction::Update => $this->transactionRepository->update(

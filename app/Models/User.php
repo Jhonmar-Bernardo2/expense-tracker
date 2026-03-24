@@ -77,26 +77,6 @@ class User extends Authenticatable
         return $this->hasMany(Budget::class);
     }
 
-    public function requestedVouchers(): HasMany
-    {
-        return $this->hasMany(Voucher::class, 'requested_by');
-    }
-
-    public function approvedVouchers(): HasMany
-    {
-        return $this->hasMany(Voucher::class, 'approved_by');
-    }
-
-    public function releasedVouchers(): HasMany
-    {
-        return $this->hasMany(Voucher::class, 'released_by');
-    }
-
-    public function reviewedVouchers(): HasMany
-    {
-        return $this->hasMany(Voucher::class, 'liquidation_reviewed_by');
-    }
-
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;

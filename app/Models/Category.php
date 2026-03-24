@@ -38,9 +38,4 @@ class Category extends Model
     {
         return $this->hasMany(Budget::class);
     }
-
-    public function voucherItems(): HasMany
-    {
-        return $this->hasMany(VoucherItem::class);
-    }
 }
