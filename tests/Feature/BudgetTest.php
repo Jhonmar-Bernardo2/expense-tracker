@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApprovalVoucher;
 use App\Models\Budget;
 use App\Models\Category;
 use App\Models\Department;
@@ -25,27 +26,20 @@ class BudgetTest extends TestCase
 
     public function test_guests_are_redirected_to_the_login_page(): void
     {
-        $budget = $this->createBudget();
+        $department = Department::factory()->create();
+        $category = $this->createCategory();
 
         $this->get(route('budgets.index'))->assertRedirect(route('login'));
 
-        $this->post(route('budgets.store'), [
-            'department_id' => $budget->department_id,
-            'category_id' => $budget->category_id,
+        $this->post(route('approval-vouchers.store'), [
+            'module' => 'budget',
+            'action' => 'create',
+            'department_id' => $department->id,
+            'category_id' => $category->id,
             'month' => 3,
             'year' => 2026,
             'amount_limit' => 1000,
         ])->assertRedirect(route('login'));
-
-        $this->put(route('budgets.update', $budget), [
-            'department_id' => $budget->department_id,
-            'category_id' => $budget->category_id,
-            'month' => 3,
-            'year' => 2026,
-            'amount_limit' => 1500,
-        ])->assertRedirect(route('login'));
-
-        $this->delete(route('budgets.destroy', $budget))->assertRedirect(route('login'));
     }
 
     public function test_staff_user_views_only_their_departments_budgets_and_usage(): void
@@ -110,7 +104,7 @@ class BudgetTest extends TestCase
             );
     }
 
-    public function test_staff_cannot_force_budget_creation_into_another_department(): void
+    public function test_staff_cannot_force_budget_request_into_another_department(): void
     {
         $department = Department::factory()->create();
         $otherDepartment = Department::factory()->create();
@@ -118,7 +112,9 @@ class BudgetTest extends TestCase
         $category = $this->createCategory();
 
         $this->actingAs($user)
-            ->post(route('budgets.store'), [
+            ->post(route('approval-vouchers.store'), [
+                'module' => 'budget',
+                'action' => 'create',
                 'department_id' => $otherDepartment->id,
                 'category_id' => $category->id,
                 'month' => 4,
@@ -127,17 +123,17 @@ class BudgetTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('budgets', [
-            'user_id' => $user->id,
+        $this->assertDatabaseHas('approval_vouchers', [
+            'requested_by' => $user->id,
             'department_id' => $department->id,
-            'category_id' => $category->id,
-            'month' => 4,
-            'year' => 2026,
-            'amount_limit' => 2500.00,
+            'module' => 'budget',
+            'action' => 'create',
+            'status' => 'draft',
         ]);
+        $this->assertDatabaseCount('budgets', 0);
     }
 
-    public function test_admin_can_view_all_departments_and_create_budget_for_a_selected_department(): void
+    public function test_admin_can_view_all_departments_and_create_budget_request_for_a_selected_department(): void
     {
         $admin = User::factory()->admin()->create();
         $departmentA = Department::factory()->create(['name' => 'Finance']);
@@ -161,7 +157,9 @@ class BudgetTest extends TestCase
             );
 
         $this->actingAs($admin)
-            ->post(route('budgets.store'), [
+            ->post(route('approval-vouchers.store'), [
+                'module' => 'budget',
+                'action' => 'create',
                 'department_id' => $departmentB->id,
                 'category_id' => $category->id,
                 'month' => 6,
@@ -170,17 +168,16 @@ class BudgetTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('budgets', [
-            'user_id' => $admin->id,
-            'department_id' => $departmentB->id,
-            'category_id' => $category->id,
-            'month' => 6,
-            'year' => 2026,
-            'amount_limit' => 3000.00,
-        ]);
+        $approvalVoucher = ApprovalVoucher::query()->latest('id')->firstOrFail();
+
+        $this->assertSame($admin->id, $approvalVoucher->requested_by);
+        $this->assertSame($departmentB->id, $approvalVoucher->department_id);
+        $this->assertSame('budget', $approvalVoucher->module->value);
+        $this->assertSame('create', $approvalVoucher->action->value);
+        $this->assertDatabaseCount('budgets', 2);
     }
 
-    public function test_budget_uniqueness_is_enforced_per_department(): void
+    public function test_budget_uniqueness_is_enforced_per_department_for_active_records(): void
     {
         $admin = User::factory()->admin()->create();
         $departmentA = Department::factory()->create();
@@ -194,7 +191,9 @@ class BudgetTest extends TestCase
 
         $this->actingAs($admin)
             ->from(route('budgets.index'))
-            ->post(route('budgets.store'), [
+            ->post(route('approval-vouchers.store'), [
+                'module' => 'budget',
+                'action' => 'create',
                 'department_id' => $departmentA->id,
                 'category_id' => $category->id,
                 'month' => 5,
@@ -205,7 +204,9 @@ class BudgetTest extends TestCase
             ->assertSessionHasErrors('category_id');
 
         $this->actingAs($admin)
-            ->post(route('budgets.store'), [
+            ->post(route('approval-vouchers.store'), [
+                'module' => 'budget',
+                'action' => 'create',
                 'department_id' => $departmentB->id,
                 'category_id' => $category->id,
                 'month' => 5,
@@ -214,11 +215,10 @@ class BudgetTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('budgets', [
+        $this->assertDatabaseHas('approval_vouchers', [
             'department_id' => $departmentB->id,
-            'category_id' => $category->id,
-            'month' => 5,
-            'year' => 2026,
+            'module' => 'budget',
+            'action' => 'create',
         ]);
     }
 

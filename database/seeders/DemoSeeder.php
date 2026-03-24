@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Enums\TransactionType;
 use App\Models\Category;
 use App\Models\Transaction;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 
@@ -12,6 +13,9 @@ class DemoSeeder extends Seeder
 {
     public function run(int $userId): void
     {
+        $user = User::query()->findOrFail($userId);
+        $departmentId = (int) $user->department_id;
+
         $incomeCategories = [
             'Salary',
             'Freelance',
@@ -35,7 +39,6 @@ class DemoSeeder extends Seeder
 
         foreach ($incomeCategories as $name) {
             $category = Category::query()->firstOrCreate([
-                'user_id' => $userId,
                 'type' => TransactionType::Income->value,
                 'name' => $name,
             ]);
@@ -45,7 +48,6 @@ class DemoSeeder extends Seeder
 
         foreach ($expenseCategories as $name) {
             $category = Category::query()->firstOrCreate([
-                'user_id' => $userId,
                 'type' => TransactionType::Expense->value,
                 'name' => $name,
             ]);
@@ -64,6 +66,7 @@ class DemoSeeder extends Seeder
             // Primary income: salary every month.
             Transaction::query()->create([
                 'user_id' => $userId,
+                'department_id' => $departmentId,
                 'category_id' => $categoriesByKey['income:Salary']->id,
                 'type' => TransactionType::Income->value,
                 'title' => 'Monthly salary',
@@ -76,6 +79,7 @@ class DemoSeeder extends Seeder
             if ($month % 2 === 0) {
                 Transaction::query()->create([
                     'user_id' => $userId,
+                    'department_id' => $departmentId,
                     'category_id' => $categoriesByKey['income:Freelance']->id,
                     'type' => TransactionType::Income->value,
                     'title' => 'Freelance project',
@@ -88,6 +92,7 @@ class DemoSeeder extends Seeder
             // Fixed expenses.
             Transaction::query()->create([
                 'user_id' => $userId,
+                'department_id' => $departmentId,
                 'category_id' => $categoriesByKey['expense:Rent']->id,
                 'type' => TransactionType::Expense->value,
                 'title' => 'Rent',
@@ -98,6 +103,7 @@ class DemoSeeder extends Seeder
 
             Transaction::query()->create([
                 'user_id' => $userId,
+                'department_id' => $departmentId,
                 'category_id' => $categoriesByKey['expense:Internet']->id,
                 'type' => TransactionType::Expense->value,
                 'title' => 'Internet bill',
@@ -108,6 +114,7 @@ class DemoSeeder extends Seeder
 
             Transaction::query()->create([
                 'user_id' => $userId,
+                'department_id' => $departmentId,
                 'category_id' => $categoriesByKey['expense:Utilities']->id,
                 'type' => TransactionType::Expense->value,
                 'title' => 'Utilities',
@@ -126,6 +133,7 @@ class DemoSeeder extends Seeder
 
                 Transaction::query()->create([
                     'user_id' => $userId,
+                    'department_id' => $departmentId,
                     'category_id' => $categoriesByKey['expense:Food']->id,
                     'type' => TransactionType::Expense->value,
                     'title' => 'Groceries',
@@ -136,6 +144,7 @@ class DemoSeeder extends Seeder
 
                 Transaction::query()->create([
                     'user_id' => $userId,
+                    'department_id' => $departmentId,
                     'category_id' => $categoriesByKey['expense:Transportation']->id,
                     'type' => TransactionType::Expense->value,
                     'title' => 'Transport',
@@ -149,6 +158,7 @@ class DemoSeeder extends Seeder
             if ($month % 3 === 1) {
                 Transaction::query()->create([
                     'user_id' => $userId,
+                    'department_id' => $departmentId,
                     'category_id' => $categoriesByKey['expense:Entertainment']->id,
                     'type' => TransactionType::Expense->value,
                     'title' => 'Movie night',
@@ -161,6 +171,7 @@ class DemoSeeder extends Seeder
             if ($month % 3 === 2) {
                 Transaction::query()->create([
                     'user_id' => $userId,
+                    'department_id' => $departmentId,
                     'category_id' => $categoriesByKey['expense:Health']->id,
                     'type' => TransactionType::Expense->value,
                     'title' => 'Pharmacy',
@@ -173,6 +184,7 @@ class DemoSeeder extends Seeder
             if ($month % 4 === 0) {
                 Transaction::query()->create([
                     'user_id' => $userId,
+                    'department_id' => $departmentId,
                     'category_id' => $categoriesByKey['expense:Shopping']->id,
                     'type' => TransactionType::Expense->value,
                     'title' => 'Household items',

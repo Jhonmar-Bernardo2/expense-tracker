@@ -205,6 +205,8 @@ const toggleStatus = (user: ManagedUser) => {
 
 const roleBadgeVariant = (role: UserRole) =>
     role === 'admin' ? 'default' : 'secondary';
+
+const canManageUser = (user: ManagedUser) => !user.is_system_account;
 </script>
 
 <template>
@@ -223,7 +225,8 @@ const roleBadgeVariant = (role: UserRole) =>
                         </CardTitle>
                         <CardDescription>
                             Create users, assign departments, and manage admin
-                            or staff access.
+                            or staff access. Protected system accounts stay
+                            locked to admin access.
                         </CardDescription>
                     </div>
 
@@ -477,7 +480,15 @@ const roleBadgeVariant = (role: UserRole) =>
                                         <td
                                             class="px-4 py-3 font-medium text-foreground"
                                         >
-                                            {{ user.name }}
+                                            <div class="flex items-center gap-2">
+                                                <span>{{ user.name }}</span>
+                                                <Badge
+                                                    v-if="user.is_system_account"
+                                                    variant="outline"
+                                                >
+                                                    System
+                                                </Badge>
+                                            </div>
                                         </td>
                                         <td
                                             class="px-4 py-3 text-muted-foreground"
@@ -536,6 +547,9 @@ const roleBadgeVariant = (role: UserRole) =>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
+                                                    :disabled="
+                                                        !canManageUser(user)
+                                                    "
                                                     @click="
                                                         openEditDialog(user)
                                                     "
@@ -549,6 +563,7 @@ const roleBadgeVariant = (role: UserRole) =>
                                                     variant="outline"
                                                     size="sm"
                                                     :disabled="
+                                                        !canManageUser(user) ||
                                                         togglingUserId ===
                                                         user.id
                                                     "
@@ -571,6 +586,12 @@ const roleBadgeVariant = (role: UserRole) =>
                                                     }}
                                                 </Button>
                                             </div>
+                                            <p
+                                                v-if="user.is_system_account"
+                                                class="mt-2 text-right text-xs text-muted-foreground"
+                                            >
+                                                Protected developer account
+                                            </p>
                                         </td>
                                     </tr>
                                 </tbody>

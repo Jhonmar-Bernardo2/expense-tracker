@@ -33,7 +33,8 @@ import {
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
-import { destroy, index, store, update } from '@/routes/budgets';
+import { store as storeApprovalVoucher } from '@/routes/approval-vouchers';
+import { index } from '@/routes/budgets';
 import type {
     BreadcrumbItem,
     Budget,
@@ -107,17 +108,17 @@ const selectedDepartmentLabel = computed(() => {
 });
 
 const dialogTitle = computed(() =>
-    editingBudget.value ? 'Edit budget' : 'Create budget',
+    editingBudget.value ? 'Request budget update' : 'Request budget',
 );
 
 const dialogDescription = computed(() =>
     editingBudget.value
-        ? 'Update the monthly spending limit for this category and department.'
-        : 'Create a monthly spending limit for one expense category.',
+        ? 'Submit a change request for this monthly spending limit.'
+        : 'Submit a new monthly spending limit request for one expense category.',
 );
 
 const submitLabel = computed(() =>
-    editingBudget.value ? 'Save changes' : 'Create budget',
+    editingBudget.value ? 'Create update request' : 'Create request',
 );
 
 const applyFilters = () => {
@@ -182,13 +183,14 @@ const closeDialog = () => {
 };
 
 const submit = () => {
-    const action = editingBudget.value
-        ? update(editingBudget.value.id)
-        : store();
-
-    form.submit(action.method, action.url, {
+    form.transform((data) => ({
+        ...data,
+        module: 'budget',
+        action: editingBudget.value ? 'update' : 'create',
+        target_id: editingBudget.value?.id ?? null,
+        auto_submit: true,
+    })).post(storeApprovalVoucher().url, {
         preserveScroll: true,
-        onSuccess: () => closeDialog(),
     });
 };
 
@@ -197,13 +199,23 @@ const deleteBudget = (budget: Budget) => {
         return;
     }
 
-    if (!window.confirm(`Delete the budget for "${budget.category_name}"?`)) {
+    if (
+        !window.confirm(
+            `Create a delete request for the "${budget.category_name}" budget?`,
+        )
+    ) {
         return;
     }
 
     deletingBudgetId.value = budget.id;
 
-    router.delete(destroy(budget.id).url, {
+    router.post(storeApprovalVoucher().url, {
+        module: 'budget',
+        action: 'delete',
+        target_id: budget.id,
+        department_id: budget.department_id,
+        auto_submit: true,
+    }, {
         preserveScroll: true,
         onFinish: () => {
             deletingBudgetId.value = null;
@@ -240,8 +252,8 @@ const budgetStatus = (budget: Budget) => {
                                 Budgets
                             </CardTitle>
                             <CardDescription>
-                                Assign and monitor monthly category limits by
-                                department.
+                                Final approved monthly limits by department.
+                                Changes now flow through approval vouchers.
                             </CardDescription>
                         </div>
 
@@ -252,7 +264,7 @@ const budgetStatus = (budget: Budget) => {
                                     @click="openCreateDialog"
                                 >
                                     <Plus class="mr-2 size-4" />
-                                    New budget
+                                    Request budget
                                 </Button>
                             </DialogTrigger>
 
@@ -667,7 +679,7 @@ const budgetStatus = (budget: Budget) => {
                                                     <Pencil
                                                         class="mr-2 size-4"
                                                     />
-                                                    Edit
+                                                    Request update
                                                 </Button>
                                                 <Button
                                                     variant="outline"
@@ -690,7 +702,7 @@ const budgetStatus = (budget: Budget) => {
                                                         v-else
                                                         class="mr-2 size-4"
                                                     />
-                                                    Delete
+                                                    Request delete
                                                 </Button>
                                             </div>
                                         </td>

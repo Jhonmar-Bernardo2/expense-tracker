@@ -229,6 +229,40 @@ class UserManagementTest extends TestCase
         $this->assertTrue($admin->fresh()->is_active);
     }
 
+    public function test_protected_system_accounts_cannot_be_updated_or_deactivated(): void
+    {
+        $admin = $this->createAdmin();
+        $systemAccount = User::factory()->systemAccount()->create([
+            'department_id' => $admin->department_id,
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('users.index'))
+            ->put(route('users.update', $systemAccount), [
+                'name' => 'Changed Name',
+                'email' => $systemAccount->email,
+                'role' => UserRole::Staff->value,
+                'department_id' => $admin->department_id,
+                'is_active' => true,
+            ])
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHasErrors('user');
+
+        $this->actingAs($admin)
+            ->from(route('users.index'))
+            ->patch(route('users.status.update', $systemAccount), [
+                'is_active' => false,
+            ])
+            ->assertRedirect(route('users.index'))
+            ->assertSessionHasErrors('is_active');
+
+        $systemAccount->refresh();
+
+        $this->assertTrue($systemAccount->is_system_account);
+        $this->assertTrue($systemAccount->is_active);
+        $this->assertSame(UserRole::Admin, $systemAccount->role);
+    }
+
     public function test_inactive_users_cannot_continue_using_protected_pages(): void
     {
         $inactiveUser = User::factory()->inactive()->create();

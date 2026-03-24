@@ -24,7 +24,8 @@ class DepartmentResource extends JsonResource
             'user_count' => $this->whenCounted('users'),
             'can_delete' => ($this->users_count ?? 0) === 0
                 && ($this->budgets_count ?? 0) === 0
-                && ($this->transactions_count ?? 0) === 0,
+                && ($this->transactions_count ?? 0) === 0
+                && ($this->vouchers_count ?? 0) === 0,
             'created_at' => $this->created_at?->toISOString(),
             'updated_at' => $this->updated_at?->toISOString(),
         ];

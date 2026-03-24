@@ -15,6 +15,7 @@ class CategoryResource extends JsonResource
     {
         $transactionsCount = $this->resolveCount('transactions');
         $budgetsCount = $this->resolveCount('budgets');
+        $voucherItemsCount = (int) ($this->voucher_items_count ?? 0);
 
         return [
             'id' => $this->id,
@@ -22,7 +23,9 @@ class CategoryResource extends JsonResource
             'type' => $this->type->value,
             'transaction_count' => $transactionsCount,
             'budget_count' => $budgetsCount,
-            'can_delete' => $transactionsCount === 0 && $budgetsCount === 0,
+            'can_delete' => $transactionsCount === 0
+                && $budgetsCount === 0
+                && $voucherItemsCount === 0,
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
         ];

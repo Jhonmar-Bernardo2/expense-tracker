@@ -4,6 +4,7 @@ import {
     BarChart3,
     BookOpen,
     Building2,
+    FileText,
     FolderGit2,
     LayoutGrid,
     PiggyBank,
@@ -26,12 +27,14 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as approvalVouchers } from '@/routes/approval-vouchers';
 import { index as budgets } from '@/routes/budgets';
 import { index as categories } from '@/routes/categories';
 import { index as departments } from '@/routes/departments';
 import { index as reports } from '@/routes/reports';
 import { index as transactions } from '@/routes/transactions';
 import { index as users } from '@/routes/users';
+import { index as vouchers } from '@/routes/vouchers';
 import type { NavItem, User } from '@/types';
 
 const page = usePage();
@@ -48,6 +51,16 @@ const mainNavItems: NavItem[] = [
         title: 'Transactions',
         href: transactions(),
         icon: Receipt,
+    },
+    {
+        title: 'Approval Vouchers',
+        href: approvalVouchers(),
+        icon: FileText,
+    },
+    {
+        title: 'Cash Vouchers',
+        href: vouchers(),
+        icon: FileText,
     },
     {
         title: 'Reports',

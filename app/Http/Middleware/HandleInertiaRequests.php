@@ -50,6 +50,7 @@ class HandleInertiaRequests extends Middleware
                         'avatar' => null,
                         'role' => $user->role?->value,
                         'is_active' => $user->is_active,
+                        'is_system_account' => (bool) $user->is_system_account,
                         'email_verified_at' => $user->email_verified_at?->toISOString(),
                         'department' => $user->department === null
                             ? null

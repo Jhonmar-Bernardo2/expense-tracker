@@ -13,12 +13,17 @@ export type Transaction = {
     id: number;
     user_id: number;
     department_id: number;
+    voucher_id: number | null;
+    origin_approval_voucher_id: number | null;
+    voided_by_approval_voucher_id: number | null;
     category_id: number;
     type: TransactionType;
     title: string;
     amount: string;
     description: string | null;
     transaction_date: string | null;
+    voided_at: string | null;
+    is_voided: boolean;
     category?: TransactionCategory;
     department?: DepartmentSummary | null;
     created_at: string | null;

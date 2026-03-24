@@ -4,16 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Enums\TransactionType;
 use App\Http\Requests\IndexTransactionRequest;
-use App\Http\Requests\UpsertTransactionRequest;
 use App\Http\Resources\CategoryResource;
 use App\Http\Resources\TransactionResource;
 use App\Repositories\CategoryRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\Department\DepartmentScopeService;
-use App\Services\Transaction\StoreTransactionService;
-use App\Services\Transaction\UpdateTransactionService;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -77,44 +72,4 @@ class TransactionController extends Controller
         ]);
     }
 
-    public function store(
-        UpsertTransactionRequest $request,
-        StoreTransactionService $storeTransactionService,
-    ): RedirectResponse {
-        $validated = $request->validated();
-        $validated['department_id'] = $this->departmentScopeService->resolveWritableDepartmentId(
-            $request->user(),
-            isset($validated['department_id']) ? (int) $validated['department_id'] : null,
-        );
-
-        $storeTransactionService->handle($request->user(), $validated['department_id'], $validated);
-
-        return back()->with('success', 'Transaction created.');
-    }
-
-    public function update(
-        UpsertTransactionRequest $request,
-        int $transaction,
-        UpdateTransactionService $updateTransactionService,
-    ): RedirectResponse {
-        $validated = $request->validated();
-        $validated['department_id'] = $this->departmentScopeService->resolveWritableDepartmentId(
-            $request->user(),
-            isset($validated['department_id']) ? (int) $validated['department_id'] : null,
-        );
-        $existingTransaction = $this->transactionRepository->findForViewerOrFail($request->user(), $transaction);
-
-        $updateTransactionService->handle($existingTransaction, $validated);
-
-        return back()->with('success', 'Transaction updated.');
-    }
-
-    public function destroy(Request $request, int $transaction): RedirectResponse
-    {
-        $existingTransaction = $this->transactionRepository->findForViewerOrFail($request->user(), $transaction);
-
-        $this->transactionRepository->delete($existingTransaction);
-
-        return back()->with('success', 'Transaction deleted.');
-    }
 }

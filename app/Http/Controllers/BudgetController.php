@@ -3,16 +3,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\IndexBudgetRequest;
-use App\Http\Requests\UpsertBudgetRequest;
 use App\Http\Resources\BudgetResource;
 use App\Repositories\BudgetRepository;
 use App\Repositories\CategoryRepository;
-use App\Services\Budget\StoreBudgetService;
-use App\Services\Budget\UpdateBudgetService;
 use App\Services\Department\DepartmentScopeService;
 use Carbon\CarbonImmutable;
-use Illuminate\Http\RedirectResponse;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -69,44 +64,4 @@ class BudgetController extends Controller
         ]);
     }
 
-    public function store(
-        UpsertBudgetRequest $request,
-        StoreBudgetService $storeBudgetService,
-    ): RedirectResponse {
-        $validated = $request->validated();
-        $validated['department_id'] = $this->departmentScopeService->resolveWritableDepartmentId(
-            $request->user(),
-            isset($validated['department_id']) ? (int) $validated['department_id'] : null,
-        );
-
-        $storeBudgetService->handle($request->user(), $validated['department_id'], $validated);
-
-        return back()->with('success', 'Budget created.');
-    }
-
-    public function update(
-        UpsertBudgetRequest $request,
-        int $budget,
-        UpdateBudgetService $updateBudgetService,
-    ): RedirectResponse {
-        $validated = $request->validated();
-        $validated['department_id'] = $this->departmentScopeService->resolveWritableDepartmentId(
-            $request->user(),
-            isset($validated['department_id']) ? (int) $validated['department_id'] : null,
-        );
-        $existingBudget = $this->budgetRepository->findForViewerOrFail($request->user(), $budget);
-
-        $updateBudgetService->handle($existingBudget, $validated);
-
-        return back()->with('success', 'Budget updated.');
-    }
-
-    public function destroy(Request $request, int $budget): RedirectResponse
-    {
-        $existingBudget = $this->budgetRepository->findForViewerOrFail($request->user(), $budget);
-
-        $this->budgetRepository->delete($existingBudget);
-
-        return back()->with('success', 'Budget deleted.');
-    }
 }

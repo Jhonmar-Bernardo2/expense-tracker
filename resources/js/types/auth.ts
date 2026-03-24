@@ -7,6 +7,7 @@ export type User = {
     avatar?: string | null;
     role: UserRole;
     is_active: boolean;
+    is_system_account: boolean;
     department: DepartmentSummary | null;
     email_verified_at: string | null;
     [key: string]: unknown;

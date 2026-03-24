@@ -29,6 +29,7 @@ class User extends Authenticatable
         'role',
         'department_id',
         'is_active',
+        'is_system_account',
         'email_verified_at',
     ];
 
@@ -56,6 +57,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'role' => UserRole::class,
             'is_active' => 'boolean',
+            'is_system_account' => 'boolean',
             'two_factor_confirmed_at' => 'datetime',
         ];
     }
@@ -75,6 +77,26 @@ class User extends Authenticatable
         return $this->hasMany(Budget::class);
     }
 
+    public function requestedVouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class, 'requested_by');
+    }
+
+    public function approvedVouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class, 'approved_by');
+    }
+
+    public function releasedVouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class, 'released_by');
+    }
+
+    public function reviewedVouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class, 'liquidation_reviewed_by');
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;
@@ -83,5 +105,10 @@ class User extends Authenticatable
     public function isStaff(): bool
     {
         return $this->role === UserRole::Staff;
+    }
+
+    public function isSystemAccount(): bool
+    {
+        return (bool) $this->is_system_account;
     }
 }

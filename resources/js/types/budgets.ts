@@ -3,6 +3,8 @@ import type { DepartmentSummary } from './users';
 export type Budget = {
     id: number;
     department_id: number;
+    origin_approval_voucher_id: number | null;
+    archived_by_approval_voucher_id: number | null;
     category_id: number;
     category_name: string;
     month: number;
@@ -12,6 +14,8 @@ export type Budget = {
     amount_remaining: number;
     percentage_used: number;
     is_over_budget: boolean;
+    archived_at: string | null;
+    is_archived: boolean;
     department?: DepartmentSummary | null;
     created_at: string | null;
     updated_at: string | null;

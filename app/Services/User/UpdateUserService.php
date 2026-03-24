@@ -19,6 +19,12 @@ class UpdateUserService
      */
     public function handle(User $user, array $data): User
     {
+        if ($user->isSystemAccount()) {
+            throw ValidationException::withMessages([
+                'user' => 'System accounts are protected and cannot be modified here.',
+            ]);
+        }
+
         $willLoseAdminAccess = $user->isAdmin()
             && ($data['role'] !== UserRole::Admin->value || ! $data['is_active']);
 

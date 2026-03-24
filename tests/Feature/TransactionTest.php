@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ApprovalVoucher;
 use App\Models\Category;
 use App\Models\Department;
 use App\Models\Transaction;
@@ -16,31 +17,22 @@ class TransactionTest extends TestCase
 
     public function test_guests_are_redirected_to_the_login_page(): void
     {
-        $transaction = $this->createTransaction();
+        $department = Department::factory()->create();
+        $category = $this->createCategory();
 
         $this->get(route('transactions.index'))->assertRedirect(route('login'));
 
-        $this->post(route('transactions.store'), [
-            'department_id' => $transaction->department_id,
+        $this->post(route('approval-vouchers.store'), [
+            'module' => 'transaction',
+            'action' => 'create',
+            'department_id' => $department->id,
             'type' => 'expense',
-            'category_id' => $transaction->category_id,
+            'category_id' => $category->id,
             'title' => 'Lunch',
             'amount' => 150,
             'description' => null,
             'transaction_date' => '2026-03-15',
         ])->assertRedirect(route('login'));
-
-        $this->put(route('transactions.update', $transaction), [
-            'department_id' => $transaction->department_id,
-            'type' => 'expense',
-            'category_id' => $transaction->category_id,
-            'title' => 'Dinner',
-            'amount' => 200,
-            'description' => null,
-            'transaction_date' => '2026-03-16',
-        ])->assertRedirect(route('login'));
-
-        $this->delete(route('transactions.destroy', $transaction))->assertRedirect(route('login'));
     }
 
     public function test_staff_user_only_views_transactions_from_their_department(): void
@@ -77,7 +69,7 @@ class TransactionTest extends TestCase
             );
     }
 
-    public function test_staff_cannot_force_transaction_into_another_department(): void
+    public function test_staff_cannot_force_transaction_request_into_another_department(): void
     {
         $department = Department::factory()->create();
         $otherDepartment = Department::factory()->create();
@@ -85,7 +77,9 @@ class TransactionTest extends TestCase
         $category = $this->createCategory(['name' => 'Food']);
 
         $this->actingAs($user)
-            ->post(route('transactions.store'), [
+            ->post(route('approval-vouchers.store'), [
+                'module' => 'transaction',
+                'action' => 'create',
                 'department_id' => $otherDepartment->id,
                 'type' => 'expense',
                 'category_id' => $category->id,
@@ -96,16 +90,17 @@ class TransactionTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('transactions', [
-            'user_id' => $user->id,
+        $this->assertDatabaseHas('approval_vouchers', [
+            'requested_by' => $user->id,
             'department_id' => $department->id,
-            'category_id' => $category->id,
-            'title' => 'Lunch',
-            'type' => 'expense',
+            'module' => 'transaction',
+            'action' => 'create',
+            'status' => 'draft',
         ]);
+        $this->assertDatabaseCount('transactions', 0);
     }
 
-    public function test_admin_can_filter_and_create_transactions_for_any_department(): void
+    public function test_admin_can_filter_and_create_transaction_requests_for_any_department(): void
     {
         $admin = User::factory()->admin()->create();
         $departmentA = Department::factory()->create(['name' => 'Finance']);
@@ -128,7 +123,9 @@ class TransactionTest extends TestCase
             );
 
         $this->actingAs($admin)
-            ->post(route('transactions.store'), [
+            ->post(route('approval-vouchers.store'), [
+                'module' => 'transaction',
+                'action' => 'create',
                 'department_id' => $departmentB->id,
                 'type' => 'expense',
                 'category_id' => $category->id,
@@ -139,14 +136,16 @@ class TransactionTest extends TestCase
             ])
             ->assertRedirect();
 
-        $this->assertDatabaseHas('transactions', [
-            'user_id' => $admin->id,
-            'department_id' => $departmentB->id,
-            'title' => 'Department supplies',
-        ]);
+        $approvalVoucher = ApprovalVoucher::query()->latest('id')->firstOrFail();
+
+        $this->assertSame($admin->id, $approvalVoucher->requested_by);
+        $this->assertSame($departmentB->id, $approvalVoucher->department_id);
+        $this->assertSame('transaction', $approvalVoucher->module->value);
+        $this->assertSame('create', $approvalVoucher->action->value);
+        $this->assertDatabaseCount('transactions', 2);
     }
 
-    public function test_staff_cannot_update_another_departments_transaction(): void
+    public function test_staff_cannot_request_updates_for_another_departments_transaction(): void
     {
         $department = Department::factory()->create();
         $otherDepartment = Department::factory()->create();
@@ -156,7 +155,10 @@ class TransactionTest extends TestCase
         $transaction = $this->createTransaction($otherUser, $otherDepartment, $category);
 
         $this->actingAs($user)
-            ->put(route('transactions.update', $transaction), [
+            ->post(route('approval-vouchers.store'), [
+                'module' => 'transaction',
+                'action' => 'update',
+                'target_id' => $transaction->id,
                 'department_id' => $department->id,
                 'type' => 'expense',
                 'category_id' => $category->id,

@@ -34,6 +34,7 @@ class UserFactory extends Factory
             'role' => UserRole::Staff,
             'department_id' => Department::factory(),
             'is_active' => true,
+            'is_system_account' => false,
             'remember_token' => Str::random(10),
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
@@ -74,6 +75,15 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_active' => false,
+        ]);
+    }
+
+    public function systemAccount(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Admin,
+            'is_active' => true,
+            'is_system_account' => true,
         ]);
     }
 }

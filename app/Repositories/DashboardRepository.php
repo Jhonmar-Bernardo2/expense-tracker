@@ -75,6 +75,7 @@ class DashboardRepository
     public function getCurrentMonthExpensesByCategory(?int $departmentId, CarbonImmutable $date): array
     {
         return Transaction::query()
+            ->active()
             ->when(
                 $departmentId !== null,
                 fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
@@ -101,6 +102,7 @@ class DashboardRepository
     public function getIncomeVsExpensesByMonth(?int $departmentId, int $year): array
     {
         $rows = Transaction::query()
+            ->active()
             ->when(
                 $departmentId !== null,
                 fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
@@ -157,6 +159,7 @@ class DashboardRepository
     private function baseTransactionQuery(?int $departmentId): Builder
     {
         return Transaction::query()
+            ->active()
             ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId));
     }
 }

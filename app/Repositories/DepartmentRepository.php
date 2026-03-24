@@ -13,7 +13,7 @@ class DepartmentRepository
     public function getForIndex(): Collection
     {
         return Department::query()
-            ->withCount(['users', 'budgets', 'transactions'])
+            ->withCount(['users', 'budgets', 'transactions', 'vouchers'])
             ->orderBy('name')
             ->get();
     }
@@ -59,7 +59,8 @@ class DepartmentRepository
     {
         return $department->users()->exists()
             || $department->budgets()->exists()
-            || $department->transactions()->exists();
+            || $department->transactions()->exists()
+            || $department->vouchers()->exists();
     }
 
     public function delete(Department $department): void

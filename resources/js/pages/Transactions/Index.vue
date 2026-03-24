@@ -48,7 +48,8 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
-import { destroy, index, store, update } from '@/routes/transactions';
+import { store as storeApprovalVoucher } from '@/routes/approval-vouchers';
+import { index } from '@/routes/transactions';
 import type {
     BreadcrumbItem,
     Category,
@@ -232,25 +233,33 @@ const applyFilters = () => {
 };
 
 const submit = () => {
-    const action = editingTransaction.value
-        ? update(editingTransaction.value.id)
-        : store();
-    form.submit(action.method, action.url, {
+    form.transform((data) => ({
+        ...data,
+        module: 'transaction',
+        action: editingTransaction.value ? 'update' : 'create',
+        target_id: editingTransaction.value?.id ?? null,
+        auto_submit: true,
+    })).post(storeApprovalVoucher().url, {
         preserveScroll: true,
-        onSuccess: () => {
-            isDialogOpen.value = false;
-            editingTransaction.value = null;
-            resetForm();
-        },
     });
 };
 
 const deleteTransaction = (transaction: Transaction) => {
-    if (!window.confirm(`Delete the "${transaction.title}" transaction?`)) {
+    if (!window.confirm(`Create a delete request for "${transaction.title}"?`)) {
         return;
     }
 
-    router.delete(destroy(transaction.id).url, { preserveScroll: true });
+    router.post(
+        storeApprovalVoucher().url,
+        {
+            module: 'transaction',
+            action: 'delete',
+            target_id: transaction.id,
+            department_id: transaction.department_id,
+            auto_submit: true,
+        },
+        { preserveScroll: true },
+    );
 };
 </script>
 
@@ -270,8 +279,8 @@ const deleteTransaction = (transaction: Transaction) => {
                                 Transactions
                             </CardTitle>
                             <CardDescription
-                                >Track department-level income and
-                                expenses.</CardDescription
+                                >Final approved income and expense records. New
+                                changes must go through approval vouchers.</CardDescription
                             >
                         </div>
 
@@ -282,7 +291,7 @@ const deleteTransaction = (transaction: Transaction) => {
                                     @click="openCreateDialog"
                                 >
                                     <Plus class="mr-2 size-4" />
-                                    Add transaction
+                                    Request transaction
                                 </Button>
                             </DialogTrigger>
 
@@ -290,8 +299,8 @@ const deleteTransaction = (transaction: Transaction) => {
                                 <DialogHeader>
                                     <DialogTitle>{{
                                         editingTransaction
-                                            ? 'Edit transaction'
-                                            : 'Add transaction'
+                                            ? 'Request transaction update'
+                                            : 'Request transaction'
                                     }}</DialogTitle>
                                 </DialogHeader>
 
@@ -468,8 +477,8 @@ const deleteTransaction = (transaction: Transaction) => {
                                             <Spinner v-if="form.processing" />
                                             {{
                                                 editingTransaction
-                                                    ? 'Save changes'
-                                                    : 'Create transaction'
+                                                    ? 'Create update request'
+                                                    : 'Create request'
                                             }}
                                         </Button>
                                     </DialogFooter>
@@ -751,7 +760,7 @@ const deleteTransaction = (transaction: Transaction) => {
                                                 "
                                             >
                                                 <Pencil class="mr-2 size-4" />
-                                                Edit
+                                                Request update
                                             </Button>
                                             <Button
                                                 variant="outline"
@@ -763,7 +772,7 @@ const deleteTransaction = (transaction: Transaction) => {
                                                 "
                                             >
                                                 <Trash2 class="mr-2 size-4" />
-                                                Delete
+                                                Request delete
                                             </Button>
                                         </div>
                                     </TableCell>

@@ -17,8 +17,7 @@ class TransactionRepository
     {
         $search = isset($filters['search']) ? trim((string) $filters['search']) : null;
 
-        return Transaction::query()
-            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
+        return $this->activeQuery($departmentId)
             ->with(['category', 'department'])
             ->when($filters['type'] ?? null, fn ($query, TransactionType $type) => $query->where('type', $type->value))
             ->when($filters['category_id'] ?? null, fn ($query, int $categoryId) => $query->where('category_id', $categoryId))
@@ -39,6 +38,7 @@ class TransactionRepository
     public function findForViewerOrFail(User $user, int $transactionId): Transaction
     {
         return Transaction::query()
+            ->active()
             ->when(
                 ! $user->isAdmin(),
                 fn (Builder $query) => $query->where('department_id', $user->department_id),
@@ -49,11 +49,19 @@ class TransactionRepository
     /**
      * @param  array{category_id: int, type: string, title: string, amount: mixed, description?: ?string, transaction_date: string}  $data
      */
-    public function create(User $user, int $departmentId, array $data): Transaction
+    public function create(
+        User $user,
+        int $departmentId,
+        array $data,
+        ?int $voucherId = null,
+        ?int $originApprovalVoucherId = null,
+    ): Transaction
     {
         return Transaction::query()->create([
             'user_id' => $user->id,
             'department_id' => $departmentId,
+            'voucher_id' => $voucherId,
+            'origin_approval_voucher_id' => $originApprovalVoucherId,
             'category_id' => $data['category_id'],
             'type' => $data['type'],
             'title' => $data['title'],
@@ -86,18 +94,37 @@ class TransactionRepository
         $transaction->delete();
     }
 
+    public function void(Transaction $transaction, int $approvalVoucherId): Transaction
+    {
+        $transaction->update([
+            'voided_at' => now(),
+            'voided_by_approval_voucher_id' => $approvalVoucherId,
+        ]);
+
+        return $transaction->refresh();
+    }
+
     /**
      * @return array<int, int>
      */
     public function getDistinctYears(?int $departmentId): array
     {
-        return Transaction::query()
-            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
+        return $this->activeQuery($departmentId)
             ->selectRaw('DISTINCT EXTRACT(YEAR FROM transaction_date) as year')
             ->orderByDesc('year')
             ->pluck('year')
             ->map(fn ($year) => (int) $year)
             ->values()
             ->all();
+    }
+
+    /**
+     * @return Builder<Transaction>
+     */
+    private function activeQuery(?int $departmentId): Builder
+    {
+        return Transaction::query()
+            ->active()
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId));
     }
 }

@@ -35,6 +35,7 @@ export type ManagedUser = {
     email: string;
     role: UserRole;
     is_active: boolean;
+    is_system_account: boolean;
     email_verified_at: string | null;
     department: DepartmentSummary | null;
     created_at: string | null;

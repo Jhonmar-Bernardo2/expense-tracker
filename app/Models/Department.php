@@ -33,4 +33,9 @@ class Department extends Model
     {
         return $this->hasMany(Transaction::class);
     }
+
+    public function vouchers(): HasMany
+    {
+        return $this->hasMany(Voucher::class);
+    }
 }

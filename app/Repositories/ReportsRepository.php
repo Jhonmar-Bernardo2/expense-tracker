@@ -62,6 +62,7 @@ class ReportsRepository
     public function getExpensesByCategory(?int $departmentId, int $month, int $year): array
     {
         return Transaction::query()
+            ->active()
             ->when(
                 $departmentId !== null,
                 fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
@@ -88,6 +89,7 @@ class ReportsRepository
     public function getIncomeVsExpensesByMonth(?int $departmentId, int $year): array
     {
         $rows = Transaction::query()
+            ->active()
             ->when(
                 $departmentId !== null,
                 fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
@@ -136,6 +138,7 @@ class ReportsRepository
     public function getSpendingTrend(?int $departmentId, int $month, int $year): array
     {
         $rows = Transaction::query()
+            ->active()
             ->when(
                 $departmentId !== null,
                 fn (Builder $query) => $query->where('transactions.department_id', $departmentId),
@@ -176,6 +179,7 @@ class ReportsRepository
     public function getDistinctYears(?int $departmentId): array
     {
         return Transaction::query()
+            ->active()
             ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
             ->selectRaw('DISTINCT EXTRACT(YEAR FROM transaction_date) as year')
             ->orderByDesc('year')
@@ -212,6 +216,7 @@ class ReportsRepository
     private function baseTransactionQuery(?int $departmentId): Builder
     {
         return Transaction::query()
+            ->active()
             ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId));
     }
 }

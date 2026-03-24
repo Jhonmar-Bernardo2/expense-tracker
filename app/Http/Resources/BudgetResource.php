@@ -23,6 +23,8 @@ class BudgetResource extends JsonResource
         return [
             'id' => $this->id,
             'department_id' => $this->department_id,
+            'origin_approval_voucher_id' => $this->origin_approval_voucher_id,
+            'archived_by_approval_voucher_id' => $this->archived_by_approval_voucher_id,
             'category_id' => $this->category_id,
             'category_name' => (string) ($this->category_name ?? $this->category?->name ?? ''),
             'month' => (int) $this->month,
@@ -32,6 +34,8 @@ class BudgetResource extends JsonResource
             'amount_remaining' => $amountRemaining,
             'percentage_used' => $percentageUsed,
             'is_over_budget' => $amountSpent > $amountLimit,
+            'archived_at' => $this->archived_at?->toDateTimeString(),
+            'is_archived' => $this->isArchived(),
             'department' => $this->whenLoaded('department', fn () => [
                 'id' => $this->department->id,
                 'name' => $this->department->name,
