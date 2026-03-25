@@ -1,11 +1,12 @@
 <?php
 
-use App\Http\Controllers\Auth\AuthViewController;
 use App\Http\Controllers\ApprovalVoucherController;
+use App\Http\Controllers\Auth\AuthViewController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ReportsController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
@@ -42,6 +43,15 @@ Route::middleware(['auth', 'active'])->group(function () {
 Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
+    Route::get('notifications', [NotificationController::class, 'index'])
+        ->name('notifications.index');
+
+    Route::patch('notifications/read-all', [NotificationController::class, 'readAll'])
+        ->name('notifications.read-all');
+
+    Route::patch('notifications/{notification}/read', [NotificationController::class, 'read'])
+        ->name('notifications.read');
+
     Route::resource('budgets', BudgetController::class)
         ->only(['index']);
 
@@ -51,6 +61,9 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::resource('approval-vouchers', ApprovalVoucherController::class)
         ->parameters(['approval-vouchers' => 'approvalVoucher'])
         ->only(['index', 'show', 'store', 'update']);
+
+    Route::get('approval-vouchers/{approvalVoucher}/print', [ApprovalVoucherController::class, 'print'])
+        ->name('approval-vouchers.print');
 
     Route::post('approval-vouchers/{approvalVoucher}/submit', [ApprovalVoucherController::class, 'submit'])
         ->name('approval-vouchers.submit');

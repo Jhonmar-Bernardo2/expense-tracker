@@ -1,4 +1,5 @@
 import type { Auth, Flash } from '@/types/auth';
+import type { NotificationsShared, WorkflowShared } from '@/types/notifications';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -19,6 +20,8 @@ declare module '@inertiajs/core' {
             name: string;
             auth: Auth;
             flash: Flash;
+            notifications: NotificationsShared;
+            workflow: WorkflowShared;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };

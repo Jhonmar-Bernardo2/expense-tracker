@@ -5,14 +5,16 @@ namespace App\Services\ApprovalVoucher;
 use App\Enums\ApprovalVoucherStatus;
 use App\Models\ApprovalVoucher;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Validation\ValidationException;
 
 class SubmitApprovalVoucherService
 {
     public function __construct(
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
-    ) {
-    }
+        private readonly ActivityLogService $activityLogService,
+        private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
+    ) {}
 
     public function handle(User $user, ApprovalVoucher $approvalVoucher): ApprovalVoucher
     {
@@ -35,6 +37,11 @@ class SubmitApprovalVoucherService
             'rejection_reason' => null,
         ]);
 
-        return $approvalVoucher->refresh();
+        $approvalVoucher = $approvalVoucher->refresh();
+
+        $this->activityLogService->logApprovalVoucherSubmitted($user, $approvalVoucher);
+        $this->approvalVoucherNotificationService->notifyAdminsOfSubmission($approvalVoucher);
+
+        return $approvalVoucher;
     }
 }

@@ -3,6 +3,7 @@ import { Link } from '@inertiajs/vue3';
 import {
     SidebarGroup,
     SidebarGroupLabel,
+    SidebarMenuBadge,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
@@ -33,6 +34,9 @@ const { isCurrentUrl } = useCurrentUrl();
                         <span>{{ item.title }}</span>
                     </Link>
                 </SidebarMenuButton>
+                <SidebarMenuBadge v-if="item.badge">
+                    {{ item.badge }}
+                </SidebarMenuBadge>
             </SidebarMenuItem>
         </SidebarMenu>
     </SidebarGroup>

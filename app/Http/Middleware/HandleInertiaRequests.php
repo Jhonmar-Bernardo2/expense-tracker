@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Repositories\ApprovalVoucherRepository;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -64,6 +65,14 @@ class HandleInertiaRequests extends Middleware
                 'success' => fn () => $request->session()->get('success'),
                 'error' => fn () => $request->session()->get('error'),
                 'status' => fn () => $request->session()->get('status'),
+            ],
+            'notifications' => [
+                'unread_count' => $user?->unreadNotifications()->count() ?? 0,
+            ],
+            'workflow' => [
+                'pending_approval_vouchers_count' => $user === null
+                    ? 0
+                    : app(ApprovalVoucherRepository::class)->countPendingFor($user),
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];

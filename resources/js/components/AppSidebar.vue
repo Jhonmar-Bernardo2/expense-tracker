@@ -35,12 +35,19 @@ import { index as reports } from '@/routes/reports';
 import { index as transactions } from '@/routes/transactions';
 import { index as users } from '@/routes/users';
 import type { NavItem, User } from '@/types';
+import type { WorkflowShared } from '@/types/notifications';
 
 const page = usePage();
 const currentUser = computed(() => page.props.auth.user as User | null);
 const isAdmin = computed(() => currentUser.value?.role === 'admin');
+const workflow = computed(
+    () =>
+        (page.props.workflow ?? {
+            pending_approval_vouchers_count: 0,
+        }) as WorkflowShared,
+);
 
-const mainNavItems: NavItem[] = [
+const mainNavItems = computed<NavItem[]>(() => [
     {
         title: 'Dashboard',
         href: dashboard(),
@@ -55,6 +62,10 @@ const mainNavItems: NavItem[] = [
         title: 'Approval Vouchers',
         href: approvalVouchers(),
         icon: FileText,
+        badge:
+            workflow.value.pending_approval_vouchers_count > 0
+                ? workflow.value.pending_approval_vouchers_count
+                : null,
     },
     {
         title: 'Reports',
@@ -66,7 +77,7 @@ const mainNavItems: NavItem[] = [
         href: budgets(),
         icon: PiggyBank,
     },
-];
+]);
 
 const footerNavItems: NavItem[] = [
     {

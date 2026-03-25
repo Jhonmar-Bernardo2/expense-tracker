@@ -1,6 +1,13 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import { CheckCheck, FileText, Plus, Receipt, Search, ShieldCheck } from 'lucide-vue-next';
+import {
+    CheckCheck,
+    FileText,
+    Plus,
+    Receipt,
+    Search,
+    ShieldCheck,
+} from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,7 +45,10 @@ import {
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
-import { index as approvalVoucherIndex, show as approvalVoucherShow } from '@/routes/approval-vouchers';
+import {
+    index as approvalVoucherIndex,
+    show as approvalVoucherShow,
+} from '@/routes/approval-vouchers';
 import { index as budgets } from '@/routes/budgets';
 import { index as transactions } from '@/routes/transactions';
 import type {
@@ -133,6 +143,24 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
     approvalVoucher.submitted_at ??
     approvalVoucher.created_at ??
     '-';
+const agingLabel = (approvalVoucher: ApprovalVoucher) => {
+    if (approvalVoucher.pending_age_days === null) {
+        return '-';
+    }
+
+    return approvalVoucher.is_overdue
+        ? `${approvalVoucher.pending_age_days}d overdue`
+        : `${approvalVoucher.pending_age_days}d pending`;
+};
+const agingVariant = (approvalVoucher: ApprovalVoucher) => {
+    if (approvalVoucher.pending_age_days === null) {
+        return 'outline' as const;
+    }
+
+    return approvalVoucher.is_overdue
+        ? ('destructive' as const)
+        : ('secondary' as const);
+};
 </script>
 
 <template>
@@ -244,7 +272,9 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                 "
                             >
                                 <SelectTrigger id="filter-approval-department">
-                                    <SelectValue placeholder="All departments" />
+                                    <SelectValue
+                                        placeholder="All departments"
+                                    />
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all"
@@ -303,7 +333,9 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                     "
                                 >
                                     <SelectTrigger id="filter-approval-module">
-                                        <SelectValue placeholder="All modules" />
+                                        <SelectValue
+                                            placeholder="All modules"
+                                        />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all"
@@ -334,7 +366,9 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                     "
                                 >
                                     <SelectTrigger id="filter-approval-action">
-                                        <SelectValue placeholder="All actions" />
+                                        <SelectValue
+                                            placeholder="All actions"
+                                        />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all"
@@ -360,7 +394,11 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                 type="text"
                                 @keyup.enter="applyFilters"
                             />
-                            <Button variant="outline" size="sm" @click="applyFilters">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                @click="applyFilters"
+                            >
                                 Apply
                             </Button>
                         </div>
@@ -393,13 +431,20 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                     <TableHead>Voucher</TableHead>
                                     <TableHead>Subject</TableHead>
                                     <TableHead>Module</TableHead>
-                                    <TableHead v-if="department_scope.can_select_department">
+                                    <TableHead
+                                        v-if="
+                                            department_scope.can_select_department
+                                        "
+                                    >
                                         Department
                                     </TableHead>
-                                    <TableHead>Requester</TableHead>
+                                    <TableHead>Preparer</TableHead>
                                     <TableHead>Status</TableHead>
+                                    <TableHead>Aging</TableHead>
                                     <TableHead>Date</TableHead>
-                                    <TableHead class="text-right">Actions</TableHead>
+                                    <TableHead class="text-right"
+                                        >Actions</TableHead
+                                    >
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -414,7 +459,9 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                         <div class="font-medium">
                                             {{ approvalVoucher.subject }}
                                         </div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             {{ approvalVoucher.action_label }}
                                         </div>
                                     </TableCell>
@@ -422,9 +469,14 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                         {{ approvalVoucher.module_label }}
                                     </TableCell>
                                     <TableCell
-                                        v-if="department_scope.can_select_department"
+                                        v-if="
+                                            department_scope.can_select_department
+                                        "
                                     >
-                                        {{ approvalVoucher.department?.name ?? '-' }}
+                                        {{
+                                            approvalVoucher.department?.name ??
+                                            '-'
+                                        }}
                                     </TableCell>
                                     <TableCell>
                                         {{
@@ -443,10 +495,25 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                             {{ approvalVoucher.status_label }}
                                         </Badge>
                                     </TableCell>
-                                    <TableCell>{{ rowDate(approvalVoucher) }}</TableCell>
+                                    <TableCell>
+                                        <Badge
+                                            :variant="
+                                                agingVariant(approvalVoucher)
+                                            "
+                                        >
+                                            {{ agingLabel(approvalVoucher) }}
+                                        </Badge>
+                                    </TableCell>
+                                    <TableCell>{{
+                                        rowDate(approvalVoucher)
+                                    }}</TableCell>
                                     <TableCell>
                                         <div class="flex justify-end">
-                                            <Button as-child variant="outline" size="sm">
+                                            <Button
+                                                as-child
+                                                variant="outline"
+                                                size="sm"
+                                            >
                                                 <Link
                                                     :href="
                                                         approvalVoucherShow(
@@ -470,7 +537,9 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                 <PaginationItem>
                                     <PaginationPrev
                                         :href="approval_vouchers.links.prev"
-                                        :disabled="!approval_vouchers.links.prev"
+                                        :disabled="
+                                            !approval_vouchers.links.prev
+                                        "
                                     />
                                 </PaginationItem>
                                 <PaginationItem
@@ -492,7 +561,9 @@ const rowDate = (approvalVoucher: ApprovalVoucher) =>
                                 <PaginationItem>
                                     <PaginationNext
                                         :href="approval_vouchers.links.next"
-                                        :disabled="!approval_vouchers.links.next"
+                                        :disabled="
+                                            !approval_vouchers.links.next
+                                        "
                                     />
                                 </PaginationItem>
                             </PaginationContent>

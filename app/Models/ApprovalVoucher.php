@@ -8,6 +8,7 @@ use App\Enums\ApprovalVoucherStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class ApprovalVoucher extends Model
 {
@@ -68,6 +69,11 @@ class ApprovalVoucher extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function activityLogs(): MorphMany
+    {
+        return $this->morphMany(ActivityLog::class, 'subject');
+    }
+
     public function isRequestedBy(User $user): bool
     {
         return $this->requested_by === $user->id;
@@ -92,5 +98,41 @@ class ApprovalVoucher extends Model
     public function canReject(User $user): bool
     {
         return $user->isAdmin() && $this->status === ApprovalVoucherStatus::PendingApproval;
+    }
+
+    public function resolveSubject(): string
+    {
+        $payload = $this->after_payload ?? $this->before_payload ?? [];
+
+        if ($this->module === ApprovalVoucherModule::Transaction) {
+            return (string) ($payload['title'] ?? "Transaction #{$this->target_id}");
+        }
+
+        $month = isset($payload['month']) ? (int) $payload['month'] : null;
+        $year = isset($payload['year']) ? (int) $payload['year'] : null;
+
+        if ($month !== null && $year !== null && $month >= 1 && $month <= 12) {
+            return sprintf('Budget for %s %d', date('F', mktime(0, 0, 0, $month, 1)), $year);
+        }
+
+        return $this->target_id === null
+            ? 'Budget request'
+            : "Budget #{$this->target_id}";
+    }
+
+    public function pendingAgeDays(): ?int
+    {
+        if ($this->status !== ApprovalVoucherStatus::PendingApproval || $this->submitted_at === null) {
+            return null;
+        }
+
+        return $this->submitted_at->copy()->startOfDay()->diffInDays(now()->startOfDay());
+    }
+
+    public function isOverdue(): bool
+    {
+        $pendingAgeDays = $this->pendingAgeDays();
+
+        return $pendingAgeDays !== null && $pendingAgeDays > 3;
     }
 }

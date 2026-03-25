@@ -28,6 +28,8 @@ class ApprovalVoucherResource extends JsonResource
             'action_label' => $this->action->label(),
             'status' => $this->status->value,
             'status_label' => $this->status->label(),
+            'pending_age_days' => $this->pendingAgeDays(),
+            'is_overdue' => $this->isOverdue(),
             'target_id' => $this->target_id,
             'subject' => $this->resolveSubject(),
             'before_payload' => $this->before_payload,
@@ -63,25 +65,5 @@ class ApprovalVoucherResource extends JsonResource
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
         ];
-    }
-
-    private function resolveSubject(): string
-    {
-        $payload = $this->after_payload ?? $this->before_payload ?? [];
-
-        if ($this->module === ApprovalVoucherModule::Transaction) {
-            return (string) ($payload['title'] ?? "Transaction #{$this->target_id}");
-        }
-
-        $month = isset($payload['month']) ? (int) $payload['month'] : null;
-        $year = isset($payload['year']) ? (int) $payload['year'] : null;
-
-        if ($month !== null && $year !== null && $month >= 1 && $month <= 12) {
-            return sprintf('Budget for %s %d', date('F', mktime(0, 0, 0, $month, 1)), $year);
-        }
-
-        return $this->target_id === null
-            ? 'Budget request'
-            : "Budget #{$this->target_id}";
     }
 }

@@ -78,6 +78,13 @@ class ApprovalVoucherRepository
         return $approvalVoucher->fresh($this->detailRelations());
     }
 
+    public function countPendingFor(User $user): int
+    {
+        return $this->visibleQuery($user)
+            ->where('status', ApprovalVoucherStatus::PendingApproval->value)
+            ->count();
+    }
+
     public function formatVoucherNumber(ApprovalVoucher $approvalVoucher): string
     {
         return sprintf(

@@ -6,6 +6,7 @@ use App\Enums\ApprovalVoucherStatus;
 use App\Models\ApprovalVoucher;
 use App\Models\User;
 use App\Repositories\ApprovalVoucherRepository;
+use App\Services\ActivityLogService;
 use Illuminate\Support\Facades\DB;
 
 class StoreApprovalVoucherService
@@ -13,8 +14,9 @@ class StoreApprovalVoucherService
     public function __construct(
         private readonly ApprovalVoucherRepository $approvalVoucherRepository,
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
-    ) {
-    }
+        private readonly ActivityLogService $activityLogService,
+        private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -45,7 +47,16 @@ class StoreApprovalVoucherService
                 'voucher_no' => $this->approvalVoucherRepository->formatVoucherNumber($approvalVoucher),
             ]);
 
-            return $approvalVoucher->refresh();
+            $approvalVoucher = $approvalVoucher->refresh();
+
+            $this->activityLogService->logApprovalVoucherCreated($user, $approvalVoucher);
+
+            if ($shouldAutoSubmit) {
+                $this->activityLogService->logApprovalVoucherSubmitted($user, $approvalVoucher);
+                $this->approvalVoucherNotificationService->notifyAdminsOfSubmission($approvalVoucher);
+            }
+
+            return $approvalVoucher;
         });
     }
 }

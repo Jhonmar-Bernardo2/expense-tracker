@@ -11,7 +11,9 @@ use App\Http\Requests\IndexApprovalVoucherRequest;
 use App\Http\Requests\RejectApprovalVoucherRequest;
 use App\Http\Requests\SubmitApprovalVoucherRequest;
 use App\Http\Requests\UpsertApprovalVoucherRequest;
+use App\Http\Resources\ActivityLogResource;
 use App\Http\Resources\ApprovalVoucherResource;
+use App\Repositories\ActivityLogRepository;
 use App\Repositories\ApprovalVoucherRepository;
 use App\Repositories\CategoryRepository;
 use App\Services\ApprovalVoucher\ApproveApprovalVoucherService;
@@ -29,10 +31,10 @@ class ApprovalVoucherController extends Controller
 {
     public function __construct(
         private readonly ApprovalVoucherRepository $approvalVoucherRepository,
+        private readonly ActivityLogRepository $activityLogRepository,
         private readonly CategoryRepository $categoryRepository,
         private readonly DepartmentScopeService $departmentScopeService,
-    ) {
-    }
+    ) {}
 
     public function index(IndexApprovalVoucherRequest $request): Response
     {
@@ -91,9 +93,12 @@ class ApprovalVoucherController extends Controller
 
     public function show(Request $request, int $approvalVoucher): Response
     {
+        $approvalVoucher = $this->approvalVoucherRepository->findForViewerOrFail($request->user(), $approvalVoucher);
+
         return Inertia::render('ApprovalVouchers/Show', [
-            'approval_voucher' => new ApprovalVoucherResource(
-                $this->approvalVoucherRepository->findForViewerOrFail($request->user(), $approvalVoucher)
+            'approval_voucher' => new ApprovalVoucherResource($approvalVoucher),
+            'activity_logs' => ActivityLogResource::collection(
+                $this->activityLogRepository->getTimelineForApprovalVoucher($approvalVoucher)
             ),
             'categories' => $this->categoryRepository->getForIndex()
                 ->map(fn ($category) => [
@@ -116,6 +121,29 @@ class ApprovalVoucherController extends Controller
         ]);
     }
 
+    public function print(Request $request, int $approvalVoucher): Response
+    {
+        return Inertia::render('ApprovalVouchers/Print', [
+            'approval_voucher' => new ApprovalVoucherResource(
+                $this->approvalVoucherRepository->findForViewerOrFail($request->user(), $approvalVoucher)
+            ),
+            'categories' => $this->categoryRepository->getForIndex()
+                ->map(fn ($category) => [
+                    'id' => $category->id,
+                    'name' => $category->name,
+                    'type' => $category->type->value,
+                ])
+                ->values(),
+            'departments' => $this->departmentScopeService
+                ->getOptionsFor($request->user())
+                ->map(fn ($department) => [
+                    'id' => $department->id,
+                    'name' => $department->name,
+                ])
+                ->values(),
+        ]);
+    }
+
     public function store(
         UpsertApprovalVoucherRequest $request,
         StoreApprovalVoucherService $storeApprovalVoucherService,
@@ -123,7 +151,12 @@ class ApprovalVoucherController extends Controller
         $approvalVoucher = $storeApprovalVoucherService->handle($request->user(), $request->validated());
 
         return to_route('approval-vouchers.show', $approvalVoucher)
-            ->with('success', 'Approval voucher draft created.');
+            ->with(
+                'success',
+                $approvalVoucher->status === ApprovalVoucherStatus::PendingApproval
+                    ? 'Approval voucher submitted for approval.'
+                    : 'Approval voucher draft created.',
+            );
     }
 
     public function update(

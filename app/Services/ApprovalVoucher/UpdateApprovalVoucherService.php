@@ -4,14 +4,15 @@ namespace App\Services\ApprovalVoucher;
 
 use App\Models\ApprovalVoucher;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Validation\ValidationException;
 
 class UpdateApprovalVoucherService
 {
     public function __construct(
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
-    ) {
-    }
+        private readonly ActivityLogService $activityLogService,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -36,6 +37,9 @@ class UpdateApprovalVoucherService
             'remarks' => $data['remarks'] ?? null,
         ]);
 
-        return $approvalVoucher->refresh();
+        $approvalVoucher = $approvalVoucher->refresh();
+        $this->activityLogService->logApprovalVoucherUpdated($user, $approvalVoucher);
+
+        return $approvalVoucher;
     }
 }

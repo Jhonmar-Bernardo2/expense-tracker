@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
+import { Bell, BookOpen, Folder, LayoutGrid, Menu, Search } from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from '@/components/AppLogo.vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
@@ -36,7 +36,9 @@ import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { getInitials } from '@/composables/useInitials';
 import { toUrl } from '@/lib/utils';
 import { dashboard } from '@/routes';
+import { index as notificationsIndex } from '@/routes/notifications';
 import type { BreadcrumbItem, NavItem, User } from '@/types';
+import type { NotificationsShared } from '@/types/notifications';
 
 type Props = {
     breadcrumbs?: BreadcrumbItem[];
@@ -49,6 +51,12 @@ const props = withDefaults(defineProps<Props>(), {
 const page = usePage();
 const auth = computed(() => page.props.auth);
 const currentUser = computed(() => auth.value.user as User);
+const notifications = computed(
+    () =>
+        (page.props.notifications ?? {
+            unread_count: 0,
+        }) as NotificationsShared,
+);
 const { isCurrentUrl, whenCurrentUrl } = useCurrentUrl();
 
 const activeItemStyles =
@@ -238,6 +246,23 @@ const rightNavItems: NavItem[] = [
                             </template>
                         </div>
                     </div>
+
+                    <Button as-child variant="ghost" size="icon" class="relative">
+                        <Link :href="notificationsIndex()">
+                            <Bell class="size-5" />
+                            <span class="sr-only">Notifications</span>
+                            <span
+                                v-if="notifications.unread_count > 0"
+                                class="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] font-semibold text-destructive-foreground"
+                            >
+                                {{
+                                    notifications.unread_count > 99
+                                        ? '99+'
+                                        : notifications.unread_count
+                                }}
+                            </span>
+                        </Link>
+                    </Button>
 
                     <DropdownMenu>
                         <DropdownMenuTrigger :as-child="true">

@@ -59,6 +59,8 @@ export type ApprovalVoucher = {
     action_label: string;
     status: ApprovalVoucherStatus;
     status_label: string;
+    pending_age_days: number | null;
+    is_overdue: boolean;
     target_id: number | null;
     subject: string;
     before_payload: ApprovalVoucherPayload;

@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Repositories\BudgetRepository;
 use App\Repositories\TransactionRepository;
+use App\Services\ActivityLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -20,8 +21,9 @@ class ApproveApprovalVoucherService
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
         private readonly TransactionRepository $transactionRepository,
         private readonly BudgetRepository $budgetRepository,
-    ) {
-    }
+        private readonly ActivityLogService $activityLogService,
+        private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
+    ) {}
 
     /**
      * @param  array{remarks?: ?string}  $data
@@ -40,27 +42,30 @@ class ApproveApprovalVoucherService
             $target = $this->approvalVoucherPayloadService->resolveTargetForApproval($approvalVoucher);
             $this->approvalVoucherPayloadService->assertCanApply($approvalVoucher, $target);
 
-            $appliedTargetId = $this->applyChange($approvalVoucher, $target);
+            $appliedTarget = $this->applyChange($approvalVoucher, $target);
 
             $approvalVoucher->update([
                 'status' => ApprovalVoucherStatus::Approved->value,
                 'approved_by' => $actor->id,
                 'approved_at' => now(),
                 'applied_at' => now(),
-                'target_id' => $appliedTargetId,
+                'target_id' => $appliedTarget->id,
                 'remarks' => $data['remarks'] ?? $approvalVoucher->remarks,
                 'rejection_reason' => null,
                 'rejected_at' => null,
             ]);
 
-            return $approvalVoucher->refresh();
+            $approvalVoucher = $approvalVoucher->refresh();
+
+            $this->activityLogService->logApprovalVoucherApproved($actor, $approvalVoucher);
+            $this->activityLogService->logAppliedChange($actor, $approvalVoucher, $appliedTarget);
+            $this->approvalVoucherNotificationService->notifyRequesterOfApproval($approvalVoucher);
+
+            return $approvalVoucher;
         });
     }
 
-    /**
-     * @param  Transaction|Budget|null  $target
-     */
-    private function applyChange(ApprovalVoucher $approvalVoucher, Transaction|Budget|null $target): int
+    private function applyChange(ApprovalVoucher $approvalVoucher, Transaction|Budget|null $target): Transaction|Budget
     {
         if ($approvalVoucher->module === ApprovalVoucherModule::Transaction) {
             return $this->applyTransactionChange($approvalVoucher, $target instanceof Transaction ? $target : null);
@@ -69,7 +74,7 @@ class ApproveApprovalVoucherService
         return $this->applyBudgetChange($approvalVoucher, $target instanceof Budget ? $target : null);
     }
 
-    private function applyTransactionChange(ApprovalVoucher $approvalVoucher, ?Transaction $transaction): int
+    private function applyTransactionChange(ApprovalVoucher $approvalVoucher, ?Transaction $transaction): Transaction
     {
         /** @var array{department_id: int, category_id: int, type: string, title: string, amount: float|int|string, description?: ?string, transaction_date: string}|null $payload */
         $payload = $approvalVoucher->after_payload;
@@ -80,19 +85,19 @@ class ApproveApprovalVoucherService
                 (int) $payload['department_id'],
                 $payload,
                 $approvalVoucher->id,
-            )->id,
+            ),
             ApprovalVoucherAction::Update => $this->transactionRepository->update(
                 $this->requireTransactionTarget($transaction),
                 $payload,
-            )->id,
+            ),
             ApprovalVoucherAction::Delete => $this->transactionRepository->void(
                 $this->requireTransactionTarget($transaction),
                 $approvalVoucher->id,
-            )->id,
+            ),
         };
     }
 
-    private function applyBudgetChange(ApprovalVoucher $approvalVoucher, ?Budget $budget): int
+    private function applyBudgetChange(ApprovalVoucher $approvalVoucher, ?Budget $budget): Budget
     {
         /** @var array{department_id: int, category_id: int, month: int, year: int, amount_limit: float|int|string}|null $payload */
         $payload = $approvalVoucher->after_payload;
@@ -103,15 +108,15 @@ class ApproveApprovalVoucherService
                 (int) $payload['department_id'],
                 $payload,
                 $approvalVoucher->id,
-            )->id,
+            ),
             ApprovalVoucherAction::Update => $this->budgetRepository->update(
                 $this->requireBudgetTarget($budget),
                 $payload,
-            )->id,
+            ),
             ApprovalVoucherAction::Delete => $this->budgetRepository->archive(
                 $this->requireBudgetTarget($budget),
                 $approvalVoucher->id,
-            )->id,
+            ),
         };
     }
 

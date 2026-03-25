@@ -5,10 +5,16 @@ namespace App\Services\ApprovalVoucher;
 use App\Enums\ApprovalVoucherStatus;
 use App\Models\ApprovalVoucher;
 use App\Models\User;
+use App\Services\ActivityLogService;
 use Illuminate\Validation\ValidationException;
 
 class RejectApprovalVoucherService
 {
+    public function __construct(
+        private readonly ActivityLogService $activityLogService,
+        private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
+    ) {}
+
     /**
      * @param  array{rejection_reason: string}  $data
      */
@@ -29,6 +35,11 @@ class RejectApprovalVoucherService
             'applied_at' => null,
         ]);
 
-        return $approvalVoucher->refresh();
+        $approvalVoucher = $approvalVoucher->refresh();
+
+        $this->activityLogService->logApprovalVoucherRejected($actor, $approvalVoucher);
+        $this->approvalVoucherNotificationService->notifyRequesterOfRejection($approvalVoucher);
+
+        return $approvalVoucher;
     }
 }
