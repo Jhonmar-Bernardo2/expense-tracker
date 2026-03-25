@@ -1,6 +1,14 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { Building2, Pencil, Plus, Receipt, Trash2 } from 'lucide-vue-next';
+import {
+    Building2,
+    FileUp,
+    Pencil,
+    Plus,
+    Receipt,
+    Trash2,
+    X,
+} from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +23,7 @@ import {
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogFooter,
     DialogHeader,
     DialogTitle,
@@ -37,6 +46,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
@@ -47,6 +57,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { formatFileSize, PDF_ONLY_ACCEPT } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { store as storeApprovalVoucher } from '@/routes/approval-vouchers';
 import { index } from '@/routes/transactions';
@@ -101,7 +112,9 @@ const months = [
 ];
 
 const isDialogOpen = ref(false);
+const isDeleteDialogOpen = ref(false);
 const editingTransaction = ref<Transaction | null>(null);
+const deletingTransaction = ref<Transaction | null>(null);
 const selectedType = ref<TransactionTypeTab>(props.filters.type ?? 'all');
 const selectedCategory = ref<number | 'all'>(props.filters.category ?? 'all');
 const selectedMonth = ref<number | 'all'>(props.filters.month ?? 'all');
@@ -110,6 +123,7 @@ const selectedDepartment = ref<number | 'all'>(
     props.filters.department ?? 'all',
 );
 const search = ref(props.filters.search ?? '');
+const approvalMemoPdfInput = ref<HTMLInputElement | null>(null);
 
 const canSelectDepartment = computed(
     () => props.department_scope.can_select_department,
@@ -132,6 +146,14 @@ const form = useForm({
     amount: '',
     description: '',
     transaction_date: new Date().toISOString().slice(0, 10),
+    approval_memo_pdf: null as File | null,
+    remarks: '',
+});
+
+const deleteForm = useForm({
+    department_id: null as number | null,
+    target_id: null as number | null,
+    remarks: '',
 });
 
 const filterCategories = computed(() =>
@@ -144,6 +166,9 @@ const filterCategories = computed(() =>
 
 const formCategories = computed(() =>
     props.categories.filter((category) => category.type === form.type),
+);
+const approvalMemoPdfError = computed(
+    () => form.errors.approval_memo_pdf ?? undefined,
 );
 
 watch(
@@ -161,15 +186,36 @@ watch(
     },
 );
 
+const clearFileInput = (input: HTMLInputElement | null) => {
+    if (input !== null) {
+        input.value = '';
+    }
+};
+
+const handleApprovalMemoPdfChange = (event: Event) => {
+    const target = event.target as HTMLInputElement;
+
+    form.approval_memo_pdf = target.files?.[0] ?? null;
+    clearFileInput(target);
+};
+
+const clearApprovalMemoPdf = () => {
+    form.approval_memo_pdf = null;
+    clearFileInput(approvalMemoPdfInput.value);
+};
+
 const resetForm = () => {
     form.reset();
     form.clearErrors();
     form.type = selectedType.value === 'all' ? 'expense' : selectedType.value;
     form.transaction_date = new Date().toISOString().slice(0, 10);
+    form.approval_memo_pdf = null;
+    form.remarks = '';
     form.department_id =
         props.department_scope.department_id ??
         props.departments[0]?.id ??
         null;
+    clearFileInput(approvalMemoPdfInput.value);
 
     if (canSelectDepartment.value && selectedDepartment.value !== 'all') {
         form.department_id = selectedDepartment.value;
@@ -196,8 +242,29 @@ const openEditDialog = (transaction: Transaction) => {
     form.description = transaction.description ?? '';
     form.transaction_date =
         transaction.transaction_date ?? new Date().toISOString().slice(0, 10);
+    form.approval_memo_pdf = null;
+    form.remarks = '';
     form.clearErrors();
+    clearFileInput(approvalMemoPdfInput.value);
     isDialogOpen.value = true;
+};
+
+const resetDeleteForm = () => {
+    deleteForm.reset();
+    deleteForm.clearErrors();
+    deleteForm.department_id = null;
+    deleteForm.target_id = null;
+    deleteForm.remarks = '';
+    deletingTransaction.value = null;
+};
+
+const openDeleteDialog = (transaction: Transaction) => {
+    deletingTransaction.value = transaction;
+    deleteForm.department_id = transaction.department_id;
+    deleteForm.target_id = transaction.id;
+    deleteForm.remarks = '';
+    deleteForm.clearErrors();
+    isDeleteDialogOpen.value = true;
 };
 
 const applyFilters = () => {
@@ -232,34 +299,36 @@ const applyFilters = () => {
     );
 };
 
-const submit = () => {
+const submit = (autoSubmit: boolean) => {
     form.transform((data) => ({
         ...data,
         module: 'transaction',
         action: editingTransaction.value ? 'update' : 'create',
         target_id: editingTransaction.value?.id ?? null,
-        auto_submit: true,
+        auto_submit: autoSubmit,
     })).post(storeApprovalVoucher().url, {
         preserveScroll: true,
+        forceFormData: true,
     });
 };
 
-const deleteTransaction = (transaction: Transaction) => {
-    if (!window.confirm(`Create a delete request for "${transaction.title}"?`)) {
+const submitDeleteRequest = () => {
+    if (deletingTransaction.value === null) {
         return;
     }
 
-    router.post(
-        storeApprovalVoucher().url,
-        {
-            module: 'transaction',
-            action: 'delete',
-            target_id: transaction.id,
-            department_id: transaction.department_id,
-            auto_submit: true,
-        },
-        { preserveScroll: true },
-    );
+    deleteForm.transform((data) => ({
+        ...data,
+        module: 'transaction',
+        action: 'delete',
+        target_id: deletingTransaction.value?.id ?? data.target_id,
+        department_id:
+            deletingTransaction.value?.department_id ?? data.department_id,
+        auto_submit: true,
+    })).post(storeApprovalVoucher().url, {
+        preserveScroll: true,
+        forceFormData: true,
+    });
 };
 </script>
 
@@ -283,7 +352,6 @@ const deleteTransaction = (transaction: Transaction) => {
                                 changes must go through approval vouchers.</CardDescription
                             >
                         </div>
-
                         <Dialog v-model:open="isDialogOpen">
                             <DialogTrigger as-child>
                                 <Button
@@ -295,172 +363,293 @@ const deleteTransaction = (transaction: Transaction) => {
                                 </Button>
                             </DialogTrigger>
 
-                            <DialogContent class="sm:max-w-lg">
+                            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
                                 <DialogHeader>
                                     <DialogTitle>{{
                                         editingTransaction
                                             ? 'Request transaction update'
                                             : 'Request transaction'
                                     }}</DialogTitle>
+                                    <DialogDescription>
+                                        Fill in the transaction details, then
+                                        upload the approval memo PDF before
+                                        submitting for approval.
+                                    </DialogDescription>
                                 </DialogHeader>
 
                                 <form
-                                    class="space-y-4"
-                                    @submit.prevent="submit"
+                                    class="space-y-5"
+                                    @submit.prevent="submit(false)"
                                 >
-                                    <div
-                                        v-if="canSelectDepartment"
-                                        class="grid gap-2"
-                                    >
-                                        <Label for="transaction-department"
-                                            >Department</Label
+                                    <div class="space-y-5 rounded-xl border bg-muted/10 p-5">
+                                        <div class="space-y-1">
+                                            <h3 class="text-base font-semibold">Transaction Details</h3>
+                                            <p class="text-sm text-muted-foreground">
+                                                Complete the core transaction information first, then prepare the memo section below.
+                                            </p>
+                                        </div>
+
+                                        <div
+                                            v-if="canSelectDepartment"
+                                            class="grid gap-2"
                                         >
-                                        <Select v-model="form.department_id">
-                                            <SelectTrigger
-                                                id="transaction-department"
-                                                ><SelectValue
-                                                    placeholder="Select department"
-                                            /></SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem
-                                                    v-for="department in departments"
-                                                    :key="department.id"
-                                                    :value="department.id"
+                                            <Label for="transaction-department"
+                                                >Department</Label
+                                            >
+                                            <Select v-model="form.department_id">
+                                                <SelectTrigger
+                                                    id="transaction-department"
+                                                    ><SelectValue
+                                                        placeholder="Select department"
+                                                /></SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem
+                                                        v-for="department in departments"
+                                                        :key="department.id"
+                                                        :value="department.id"
+                                                    >
+                                                        {{ department.name }}
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <InputError
+                                                :message="form.errors.department_id"
+                                            />
+                                        </div>
+
+                                        <div
+                                            v-else
+                                            class="rounded-lg border bg-background px-4 py-3 text-sm text-muted-foreground"
+                                        >
+                                            <span
+                                                class="font-medium text-foreground"
+                                                >Department:</span
+                                            >
+                                            {{ departmentLabel }}
+                                        </div>
+
+                                        <div class="grid gap-4 sm:grid-cols-2">
+                                            <div class="grid gap-2">
+                                                <Label for="transaction-type"
+                                                    >Type</Label
                                                 >
-                                                    {{ department.name }}
-                                                </SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <InputError
-                                            :message="form.errors.department_id"
-                                        />
-                                    </div>
+                                                <Select v-model="form.type">
+                                                    <SelectTrigger
+                                                        id="transaction-type"
+                                                        ><SelectValue
+                                                            placeholder="Select type"
+                                                    /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem
+                                                            v-for="type in types"
+                                                            :key="type.value"
+                                                            :value="type.value"
+                                                        >
+                                                            {{ type.label }}
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <InputError
+                                                    :message="form.errors.type"
+                                                />
+                                            </div>
 
-                                    <div
-                                        v-else
-                                        class="rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
-                                    >
-                                        <span
-                                            class="font-medium text-foreground"
-                                            >Department:</span
-                                        >
-                                        {{ departmentLabel }}
-                                    </div>
-
-                                    <div class="grid gap-4 sm:grid-cols-2">
-                                        <div class="grid gap-2">
-                                            <Label for="transaction-type"
-                                                >Type</Label
-                                            >
-                                            <Select v-model="form.type">
-                                                <SelectTrigger
-                                                    id="transaction-type"
-                                                    ><SelectValue
-                                                        placeholder="Select type"
-                                                /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem
-                                                        v-for="type in types"
-                                                        :key="type.value"
-                                                        :value="type.value"
-                                                    >
-                                                        {{ type.label }}
-                                                    </SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <InputError
-                                                :message="form.errors.type"
-                                            />
+                                            <div class="grid gap-2">
+                                                <Label for="transaction-category"
+                                                    >Category</Label
+                                                >
+                                                <Select v-model="form.category_id">
+                                                    <SelectTrigger
+                                                        id="transaction-category"
+                                                        ><SelectValue
+                                                            placeholder="Select category"
+                                                    /></SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem
+                                                            v-for="category in formCategories"
+                                                            :key="category.id"
+                                                            :value="category.id"
+                                                        >
+                                                            {{ category.name }}
+                                                        </SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <InputError
+                                                    :message="
+                                                        form.errors.category_id
+                                                    "
+                                                />
+                                            </div>
                                         </div>
 
                                         <div class="grid gap-2">
-                                            <Label for="transaction-category"
-                                                >Category</Label
-                                            >
-                                            <Select v-model="form.category_id">
-                                                <SelectTrigger
-                                                    id="transaction-category"
-                                                    ><SelectValue
-                                                        placeholder="Select category"
-                                                /></SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem
-                                                        v-for="category in formCategories"
-                                                        :key="category.id"
-                                                        :value="category.id"
-                                                    >
-                                                        {{ category.name }}
-                                                    </SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <InputError
-                                                :message="
-                                                    form.errors.category_id
-                                                "
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div class="grid gap-2">
-                                        <Label for="transaction-title"
-                                            >Title</Label
-                                        >
-                                        <Input
-                                            id="transaction-title"
-                                            v-model="form.title"
-                                            type="text"
-                                        />
-                                        <InputError
-                                            :message="form.errors.title"
-                                        />
-                                    </div>
-
-                                    <div class="grid gap-4 sm:grid-cols-2">
-                                        <div class="grid gap-2">
-                                            <Label for="transaction-amount"
-                                                >Amount</Label
+                                            <Label for="transaction-title"
+                                                >Title</Label
                                             >
                                             <Input
-                                                id="transaction-amount"
-                                                v-model="form.amount"
-                                                type="number"
-                                                min="0"
-                                                step="0.01"
+                                                id="transaction-title"
+                                                v-model="form.title"
+                                                type="text"
                                             />
                                             <InputError
-                                                :message="form.errors.amount"
+                                                :message="form.errors.title"
+                                            />
+                                        </div>
+
+                                        <div class="grid gap-4 sm:grid-cols-2">
+                                            <div class="grid gap-2">
+                                                <Label for="transaction-amount"
+                                                    >Amount</Label
+                                                >
+                                                <Input
+                                                    id="transaction-amount"
+                                                    v-model="form.amount"
+                                                    type="number"
+                                                    min="0"
+                                                    step="0.01"
+                                                />
+                                                <InputError
+                                                    :message="form.errors.amount"
+                                                />
+                                            </div>
+
+                                            <div class="grid gap-2">
+                                                <Label for="transaction-date"
+                                                    >Date</Label
+                                                >
+                                                <Input
+                                                    id="transaction-date"
+                                                    v-model="form.transaction_date"
+                                                    type="date"
+                                                />
+                                                <InputError
+                                                    :message="
+                                                        form.errors.transaction_date
+                                                    "
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div class="grid gap-2">
+                                            <Label for="transaction-description"
+                                                >Description</Label
+                                            >
+                                            <Input
+                                                id="transaction-description"
+                                                v-model="form.description"
+                                                type="text"
+                                            />
+                                            <InputError
+                                                :message="form.errors.description"
                                             />
                                         </div>
 
                                         <div class="grid gap-2">
-                                            <Label for="transaction-date"
-                                                >Date</Label
+                                            <Label for="transaction-remarks"
+                                                >Remarks</Label
                                             >
-                                            <Input
-                                                id="transaction-date"
-                                                v-model="form.transaction_date"
-                                                type="date"
+                                            <textarea
+                                                id="transaction-remarks"
+                                                v-model="form.remarks"
+                                                class="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             />
                                             <InputError
-                                                :message="
-                                                    form.errors.transaction_date
-                                                "
+                                                :message="form.errors.remarks"
                                             />
                                         </div>
                                     </div>
 
-                                    <div class="grid gap-2">
-                                        <Label for="transaction-description"
-                                            >Description</Label
-                                        >
-                                        <Input
-                                            id="transaction-description"
-                                            v-model="form.description"
-                                            type="text"
-                                        />
-                                        <InputError
-                                            :message="form.errors.description"
-                                        />
+                                    <div class="space-y-4 rounded-xl border p-5">
+                                        <div class="space-y-1">
+                                            <div class="space-y-1">
+                                                <h3 class="text-base font-semibold">Approval Memo</h3>
+                                                <p
+                                                    class="text-sm text-muted-foreground"
+                                                >
+                                                    Upload the final approval memo PDF here before submitting the transaction request.
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <Separator />
+                                        <div class="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                                            Upload the final approval memo PDF for this transaction request. A separate memo selection is no longer needed here.
+                                        </div>
+                                        <div class="grid gap-2">
+                                            <div
+                                                class="flex items-center justify-between gap-3"
+                                            >
+                                                <Label
+                                                    for="transaction-approval-memo-pdf"
+                                                >
+                                                    Approval memo PDF
+                                                </Label>
+                                                <span
+                                                    class="text-xs text-muted-foreground"
+                                                >
+                                                    PDF only
+                                                </span>
+                                            </div>
+                                            <input
+                                                id="transaction-approval-memo-pdf"
+                                                ref="approvalMemoPdfInput"
+                                                type="file"
+                                                class="block w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium"
+                                                :accept="PDF_ONLY_ACCEPT"
+                                                @change="handleApprovalMemoPdfChange"
+                                            />
+                                            <p class="text-xs text-muted-foreground">
+                                                Open the selected memo print page, save it as PDF, then upload that file here before submission.
+                                            </p>
+                                            <InputError
+                                                :message="
+                                                    approvalMemoPdfError
+                                                "
+                                            />
+                                            <div
+                                                v-if="form.approval_memo_pdf"
+                                                class="flex items-start justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
+                                            >
+                                                <div
+                                                    class="flex items-start gap-2"
+                                                >
+                                                    <FileUp
+                                                        class="mt-0.5 size-4 text-muted-foreground"
+                                                    />
+                                                    <div>
+                                                        <div
+                                                            class="text-sm font-medium"
+                                                        >
+                                                            {{
+                                                                form
+                                                                    .approval_memo_pdf
+                                                                    .name
+                                                            }}
+                                                        </div>
+                                                        <div
+                                                            class="text-xs text-muted-foreground"
+                                                        >
+                                                            {{
+                                                                formatFileSize(
+                                                                    form
+                                                                        .approval_memo_pdf
+                                                                        .size,
+                                                                )
+                                                            }}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    @click="
+                                                        clearApprovalMemoPdf()
+                                                    "
+                                                >
+                                                    <X class="size-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <DialogFooter class="gap-2 sm:justify-end">
@@ -471,15 +660,24 @@ const deleteTransaction = (transaction: Transaction) => {
                                             >Cancel</Button
                                         >
                                         <Button
-                                            type="submit"
+                                            type="button"
+                                            variant="outline"
                                             :disabled="form.processing"
+                                            @click="submit(false)"
                                         >
                                             <Spinner v-if="form.processing" />
-                                            {{
-                                                editingTransaction
-                                                    ? 'Create update request'
-                                                    : 'Create request'
-                                            }}
+                                            Save draft
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            :disabled="
+                                                form.processing ||
+                                                !form.approval_memo_pdf
+                                            "
+                                            @click="submit(true)"
+                                        >
+                                            <Spinner v-if="form.processing" />
+                                            Submit request
                                         </Button>
                                     </DialogFooter>
                                 </form>
@@ -665,6 +863,97 @@ const deleteTransaction = (transaction: Transaction) => {
                 </Card>
             </div>
 
+            <Dialog
+                v-model:open="isDeleteDialogOpen"
+                @update:open="
+                    (open) => {
+                        if (!open) {
+                            resetDeleteForm();
+                        }
+                    }
+                "
+            >
+                <DialogContent class="sm:max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>
+                            Create delete request
+                        </DialogTitle>
+                        <DialogDescription>
+                            Add a short explanation for why this
+                            transaction should be voided, then send
+                            it for approval.
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form
+                        class="space-y-4"
+                        @submit.prevent="submitDeleteRequest"
+                    >
+                        <div
+                            v-if="deletingTransaction"
+                            class="rounded-lg border bg-muted/20 p-4 text-sm"
+                        >
+                            <div class="font-medium">
+                                {{ deletingTransaction.title }}
+                            </div>
+                            <div class="mt-1 text-muted-foreground">
+                                {{
+                                    deletingTransaction.category
+                                        ?.name ?? 'Uncategorized'
+                                }}
+                                -
+                                {{
+                                    deletingTransaction.transaction_date ??
+                                    '-'
+                                }}
+                            </div>
+                            <div class="mt-2 text-muted-foreground">
+                                Amount:
+                                {{
+                                    Number(
+                                        deletingTransaction.amount,
+                                    ).toFixed(2)
+                                }}
+                            </div>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <Label for="delete-transaction-remarks"
+                                >Remarks</Label
+                            >
+                            <textarea
+                                id="delete-transaction-remarks"
+                                v-model="deleteForm.remarks"
+                                class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                            />
+                            <InputError
+                                :message="deleteForm.errors.remarks"
+                            />
+                        </div>
+
+                        <DialogFooter class="gap-2 sm:justify-end">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                @click="isDeleteDialogOpen = false"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                variant="destructive"
+                                :disabled="deleteForm.processing"
+                            >
+                                <Spinner
+                                    v-if="deleteForm.processing"
+                                />
+                                Create delete request
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             <Card class="border-sidebar-border/70 shadow-sm">
                 <CardHeader>
                     <CardTitle>Results</CardTitle>
@@ -765,11 +1054,7 @@ const deleteTransaction = (transaction: Transaction) => {
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                @click="
-                                                    deleteTransaction(
-                                                        transaction,
-                                                    )
-                                                "
+                                                @click="openDeleteDialog(transaction)"
                                             >
                                                 <Trash2 class="mr-2 size-4" />
                                                 Request delete

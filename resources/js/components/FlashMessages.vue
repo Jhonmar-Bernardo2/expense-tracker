@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 type FlashProps = {
@@ -43,6 +43,7 @@ const messages = computed(() => {
         if (flash.value.status === 'verification-link-sent') {
             return items;
         }
+
         items.push({
             key: 'status',
             title: 'Info',

@@ -14,4 +14,5 @@ export type NotificationsShared = {
 
 export type WorkflowShared = {
     pending_approval_vouchers_count: number;
+    pending_approval_memos_count: number;
 };

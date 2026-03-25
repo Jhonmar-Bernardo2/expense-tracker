@@ -13,16 +13,22 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
+use Tests\Concerns\CreatesApprovalMemos;
 
 class ApprovalVoucherAuditNotificationsTest extends TestCase
 {
     use RefreshDatabase;
+    use CreatesApprovalMemos;
 
     public function test_auto_submitting_a_voucher_notifies_active_admins_and_logs_submission(): void
     {
         [$department, $staff, $admin, $category] = $this->makeTransactionContext();
         $secondAdmin = User::factory()->admin()->create();
         $inactiveAdmin = User::factory()->admin()->inactive()->create();
+        $approvalMemo = $this->createApprovedMemo($staff, $department, [
+            'module' => 'transaction',
+            'action' => 'create',
+        ]);
 
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
@@ -35,6 +41,8 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
                 'amount' => 450,
                 'description' => 'Monthly team lunch',
                 'transaction_date' => '2026-03-24',
+                'approval_memo_id' => $approvalMemo->id,
+                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
                 'auto_submit' => true,
             ])
             ->assertRedirect();
@@ -164,7 +172,7 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Notifications/Index')
                 ->has('notification_items.data', 2)
-                ->where('notification_items.data', fn (array $items) => collect($items)
+                ->where('notification_items.data', fn ($items) => collect($items)
                     ->pluck('id')
                     ->sort()
                     ->values()
@@ -299,8 +307,14 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
             'amount' => 450,
             'description' => 'Monthly team lunch',
             'transaction_date' => '2026-03-24',
-            'auto_submit' => true,
         ], $overrides);
+
+        $payload['approval_memo_id'] ??= $this->createApprovedMemo($staff, $department, [
+            'module' => 'transaction',
+            'action' => $payload['action'] ?? 'create',
+        ])->id;
+        $payload['approval_memo_pdf'] ??= $this->makeApprovalMemoPdfUpload();
+        $payload['auto_submit'] ??= true;
 
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), $payload)

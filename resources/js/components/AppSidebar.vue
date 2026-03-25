@@ -7,6 +7,7 @@ import {
     FileText,
     FolderGit2,
     LayoutGrid,
+    MailCheck,
     PiggyBank,
     Receipt,
     Tags,
@@ -27,6 +28,7 @@ import {
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
 import { dashboard } from '@/routes';
+import { index as approvalMemos } from '@/routes/approval-memos';
 import { index as approvalVouchers } from '@/routes/approval-vouchers';
 import { index as budgets } from '@/routes/budgets';
 import { index as categories } from '@/routes/categories';
@@ -44,6 +46,7 @@ const workflow = computed(
     () =>
         (page.props.workflow ?? {
             pending_approval_vouchers_count: 0,
+            pending_approval_memos_count: 0,
         }) as WorkflowShared,
 );
 
@@ -65,6 +68,15 @@ const mainNavItems = computed<NavItem[]>(() => [
         badge:
             workflow.value.pending_approval_vouchers_count > 0
                 ? workflow.value.pending_approval_vouchers_count
+                : null,
+    },
+    {
+        title: 'Approval Memos',
+        href: approvalMemos(),
+        icon: MailCheck,
+        badge:
+            workflow.value.pending_approval_memos_count > 0
+                ? workflow.value.pending_approval_memos_count
                 : null,
     },
     {

@@ -1,4 +1,5 @@
 export * from './activity-logs';
+export * from './approval-memos';
 export * from './approval-vouchers';
 export * from './auth';
 export * from './budgets';

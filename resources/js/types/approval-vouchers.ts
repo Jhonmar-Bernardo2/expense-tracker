@@ -1,3 +1,4 @@
+import type { ApprovalMemoSummary } from './approval-memos';
 import type { CategoryType } from './categories';
 import type { DepartmentSummary } from './users';
 
@@ -16,6 +17,17 @@ export type ApprovalVoucherPermission = {
     can_submit: boolean;
     can_approve: boolean;
     can_reject: boolean;
+};
+
+export type ApprovalVoucherAttachment = {
+    id: number;
+    kind: 'supporting_document' | 'approval_memo_pdf';
+    kind_label: string;
+    name: string;
+    mime_type: string;
+    size_bytes: number;
+    uploaded_at: string | null;
+    download_url: string;
 };
 
 export type TransactionApprovalVoucherPayload = {
@@ -53,6 +65,7 @@ export type ApprovalVoucher = {
     department_id: number;
     requested_by: number;
     approved_by: number | null;
+    approval_memo_id: number | null;
     module: ApprovalVoucherModule;
     module_label: string;
     action: ApprovalVoucherAction;
@@ -68,6 +81,9 @@ export type ApprovalVoucher = {
     remarks: string | null;
     rejection_reason: string | null;
     permissions: ApprovalVoucherPermission;
+    approval_memo?: ApprovalMemoSummary | null;
+    approval_memo_pdf_attachment?: ApprovalVoucherAttachment | null;
+    attachments: ApprovalVoucherAttachment[];
     department?: DepartmentSummary | null;
     requested_by_user?: ApprovalVoucherUserSummary | null;
     approved_by_user?: ApprovalVoucherUserSummary | null;

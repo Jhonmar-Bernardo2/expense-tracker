@@ -4,8 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Enums\TransactionType;
 use App\Http\Requests\IndexTransactionRequest;
+use App\Http\Resources\ApprovalMemoOptionResource;
 use App\Http\Resources\CategoryResource;
 use App\Http\Resources\TransactionResource;
+use App\Repositories\ApprovalMemoRepository;
 use App\Repositories\CategoryRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\Department\DepartmentScopeService;
@@ -17,6 +19,7 @@ class TransactionController extends Controller
     public function __construct(
         private readonly TransactionRepository $transactionRepository,
         private readonly CategoryRepository $categoryRepository,
+        private readonly ApprovalMemoRepository $approvalMemoRepository,
         private readonly DepartmentScopeService $departmentScopeService,
     ) {
     }
@@ -55,6 +58,9 @@ class TransactionController extends Controller
                     'name' => $department->name,
                 ])
                 ->values(),
+            'available_approval_memos' => ApprovalMemoOptionResource::collection(
+                $this->approvalMemoRepository->getEligibleApprovedForUser($request->user())
+            ),
             'filters' => [
                 'type' => $type?->value,
                 'category' => $filters['category_id'],

@@ -3,11 +3,14 @@
 namespace App\Models;
 
 use App\Enums\ApprovalVoucherAction;
+use App\Enums\ApprovalVoucherAttachmentKind;
 use App\Enums\ApprovalVoucherModule;
 use App\Enums\ApprovalVoucherStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class ApprovalVoucher extends Model
@@ -22,6 +25,7 @@ class ApprovalVoucher extends Model
         'department_id',
         'requested_by',
         'approved_by',
+        'approval_memo_id',
         'module',
         'action',
         'status',
@@ -69,9 +73,36 @@ class ApprovalVoucher extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
+    public function approvalMemo(): BelongsTo
+    {
+        return $this->belongsTo(ApprovalMemo::class);
+    }
+
     public function activityLogs(): MorphMany
     {
         return $this->morphMany(ActivityLog::class, 'subject');
+    }
+
+    public function attachments(): HasMany
+    {
+        return $this->hasMany(ApprovalVoucherAttachment::class)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
+    public function supportingAttachments(): HasMany
+    {
+        return $this->hasMany(ApprovalVoucherAttachment::class)
+            ->where('kind', ApprovalVoucherAttachmentKind::SupportingDocument->value)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id');
+    }
+
+    public function approvalMemoPdfAttachment(): HasOne
+    {
+        return $this->hasOne(ApprovalVoucherAttachment::class)
+            ->where('kind', ApprovalVoucherAttachmentKind::ApprovalMemoPdf->value)
+            ->latestOfMany();
     }
 
     public function isRequestedBy(User $user): bool

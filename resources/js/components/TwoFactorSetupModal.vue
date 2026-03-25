@@ -80,6 +80,7 @@ const handleModalNextStep = () => {
         return;
     }
 
+
     clearSetupData();
     isOpen.value = false;
 };
@@ -98,6 +99,7 @@ watch(
     async (isOpen) => {
         if (!isOpen) {
             resetModalState();
+
             return;
         }
 

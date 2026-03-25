@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Head, Link } from '@inertiajs/vue3';
-import { ArrowLeft, Printer } from 'lucide-vue-next';
+import { ArrowLeft, Paperclip, Printer } from 'lucide-vue-next';
 import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
+import { formatFileSize } from '@/lib/utils';
 import {
     index as approvalVoucherIndex,
     show as approvalVoucherShow,
@@ -524,6 +525,166 @@ const printDocument = () => {
                                 'No rejection recorded.'
                             }}
                         </p>
+                    </div>
+                </section>
+
+                <section
+                    class="print-section rounded-[24px] border border-slate-200 p-5"
+                >
+                    <h2 class="text-lg font-semibold text-slate-950">
+                        Approval Memo
+                    </h2>
+                    <div
+                        v-if="approval_voucher.approval_memo"
+                        class="mt-4 grid gap-3 sm:grid-cols-3"
+                    >
+                        <div class="rounded-2xl border border-slate-200 p-4">
+                            <div
+                                class="text-xs tracking-[0.25em] text-slate-500 uppercase"
+                            >
+                                Memo No.
+                            </div>
+                            <div class="mt-2 text-sm font-semibold text-slate-900">
+                                {{ approval_voucher.approval_memo.memo_no }}
+                            </div>
+                        </div>
+                        <div class="rounded-2xl border border-slate-200 p-4">
+                            <div
+                                class="text-xs tracking-[0.25em] text-slate-500 uppercase"
+                            >
+                                Status
+                            </div>
+                            <div class="mt-2 text-sm font-semibold text-slate-900">
+                                {{
+                                    approval_voucher.approval_memo.status_label
+                                }}
+                            </div>
+                        </div>
+                        <div class="rounded-2xl border border-slate-200 p-4">
+                            <div
+                                class="text-xs tracking-[0.25em] text-slate-500 uppercase"
+                            >
+                                Approved
+                            </div>
+                            <div class="mt-2 text-sm font-semibold text-slate-900">
+                                {{
+                                    formatDateTime(
+                                        approval_voucher.approval_memo
+                                            .approved_at,
+                                    )
+                                }}
+                            </div>
+                        </div>
+                    </div>
+                    <div
+                        v-if="approval_voucher.approval_memo?.remarks"
+                        class="mt-4 text-sm text-slate-600"
+                    >
+                        {{ approval_voucher.approval_memo.remarks }}
+                    </div>
+                    <div
+                        v-if="!approval_voucher.approval_memo"
+                        class="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500"
+                    >
+                        {{
+                            approval_voucher.action === 'delete'
+                                ? 'Delete requests do not require approval memos.'
+                                : 'No approval memo linked to this voucher.'
+                        }}
+                    </div>
+                </section>
+
+                <section
+                    v-if="approval_voucher.action !== 'delete'"
+                    class="print-section rounded-[24px] border border-slate-200 p-5"
+                >
+                    <h2 class="text-lg font-semibold text-slate-950">
+                        Uploaded Approval Memo PDF
+                    </h2>
+                    <div
+                        v-if="approval_voucher.approval_memo_pdf_attachment"
+                        class="mt-4 rounded-2xl border border-slate-200 px-4 py-3"
+                    >
+                        <div class="text-sm font-semibold text-slate-900">
+                            {{
+                                approval_voucher.approval_memo_pdf_attachment
+                                    .name
+                            }}
+                        </div>
+                        <div class="mt-1 text-xs text-slate-500">
+                            {{
+                                formatFileSize(
+                                    approval_voucher
+                                        .approval_memo_pdf_attachment
+                                        .size_bytes,
+                                )
+                            }}
+                            -
+                            {{
+                                approval_voucher
+                                    .approval_memo_pdf_attachment.mime_type
+                            }}
+                            -
+                            {{
+                                formatDateTime(
+                                    approval_voucher
+                                        .approval_memo_pdf_attachment
+                                        .uploaded_at,
+                                )
+                            }}
+                        </div>
+                    </div>
+                    <div
+                        v-else
+                        class="mt-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-5 text-sm text-slate-500"
+                    >
+                        No approval memo PDF was uploaded to this voucher.
+                    </div>
+                </section>
+
+                <section
+                    class="print-section rounded-[24px] border border-slate-200 p-5"
+                >
+                    <div
+                        class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                    >
+                        <div>
+                            <h2
+                                class="flex items-center gap-2 text-lg font-semibold text-slate-950"
+                            >
+                                <Paperclip class="size-4" />
+                                Supporting Documents
+                            </h2>
+                            <p class="mt-1 text-sm text-slate-500">
+                                {{
+                                    approval_voucher.attachments.length === 0
+                                        ? 'No supporting documents attached.'
+                                        : `${approval_voucher.attachments.length} file(s) attached to this voucher.`
+                                }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <div
+                        v-if="approval_voucher.attachments.length > 0"
+                        class="mt-4 space-y-3"
+                    >
+                        <div
+                            v-for="attachment in approval_voucher.attachments"
+                            :key="attachment.id"
+                            class="rounded-2xl border border-slate-200 px-4 py-3"
+                        >
+                            <div class="text-sm font-semibold text-slate-900">
+                                {{ attachment.name }}
+                            </div>
+                            <div class="mt-1 text-xs text-slate-500">
+                                {{ formatFileSize(attachment.size_bytes) }}
+                                Â-
+                                {{ attachment.mime_type }}
+                                Â-
+                                {{ formatDateTime(attachment.uploaded_at) }}
+                            </div>
+                        </div>
                     </div>
                 </section>
 

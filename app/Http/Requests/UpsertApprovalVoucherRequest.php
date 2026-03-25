@@ -3,10 +3,13 @@
 namespace App\Http\Requests;
 
 use App\Enums\ApprovalVoucherAction;
+use App\Enums\ApprovalVoucherAttachmentKind;
 use App\Enums\ApprovalVoucherModule;
 use App\Enums\TransactionType;
+use App\Models\ApprovalVoucherAttachment;
 use App\Repositories\BudgetRepository;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -52,9 +55,44 @@ class UpsertApprovalVoucherRequest extends FormRequest
                 'nullable',
                 'string',
             ],
+            'approval_memo_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('approval_memos', 'id'),
+            ],
+            'approval_memo_pdf' => [
+                'nullable',
+                'file',
+                'mimes:pdf',
+                'mimetypes:application/pdf',
+                'max:10240',
+            ],
+            'remove_approval_memo_pdf' => [
+                'sometimes',
+                'boolean',
+            ],
             'auto_submit' => [
                 'sometimes',
                 'boolean',
+            ],
+            'attachments' => [
+                'sometimes',
+                'array',
+                'max:5',
+            ],
+            'attachments.*' => [
+                'file',
+                'mimes:pdf,jpg,jpeg,png,webp',
+                'mimetypes:application/pdf,image/jpeg,image/png,image/webp',
+                'max:10240',
+            ],
+            'remove_attachment_ids' => [
+                'sometimes',
+                'array',
+            ],
+            'remove_attachment_ids.*' => [
+                'integer',
+                Rule::exists('approval_voucher_attachments', 'id'),
             ],
         ];
 
@@ -130,37 +168,146 @@ class UpsertApprovalVoucherRequest extends FormRequest
             $module = ApprovalVoucherModule::tryFrom((string) $this->input('module'));
             $action = ApprovalVoucherAction::tryFrom((string) $this->input('action'));
 
-            if ($module !== ApprovalVoucherModule::Budget || $action === ApprovalVoucherAction::Delete) {
+            if (
+                $action === ApprovalVoucherAction::Delete
+                && $this->filled('approval_memo_id')
+            ) {
+                $validator->errors()->add(
+                    'approval_memo_id',
+                    'Approval memo is only used for create and update requests.',
+                );
+
                 return;
             }
 
-            $departmentId = $this->user()?->isAdmin()
-                ? $this->integer('department_id')
-                : (int) $this->user()?->department_id;
-            $ignoreBudgetId = $action === ApprovalVoucherAction::Update
-                ? $this->integer('target_id')
-                : null;
+            if (
+                $action === ApprovalVoucherAction::Delete
+                && ($this->hasFile('approval_memo_pdf') || $this->boolean('remove_approval_memo_pdf'))
+            ) {
+                $validator->errors()->add(
+                    'approval_memo_pdf',
+                    'Approval memo PDF is only used for create and update requests.',
+                );
 
-            if ($departmentId === 0) {
                 return;
             }
 
-            $hasConflict = app(BudgetRepository::class)->existsActiveConflict(
-                $departmentId,
-                $this->integer('category_id'),
-                $this->integer('month'),
-                $this->integer('year'),
-                $ignoreBudgetId > 0 ? $ignoreBudgetId : null,
-            );
+            if ($module === ApprovalVoucherModule::Budget && $action !== ApprovalVoucherAction::Delete) {
+                $departmentId = $this->user()?->isAdmin()
+                    ? $this->integer('department_id')
+                    : (int) $this->user()?->department_id;
+                $ignoreBudgetId = $action === ApprovalVoucherAction::Update
+                    ? $this->integer('target_id')
+                    : null;
 
-            if (! $hasConflict) {
+                if ($departmentId !== 0) {
+                    $hasConflict = app(BudgetRepository::class)->existsActiveConflict(
+                        $departmentId,
+                        $this->integer('category_id'),
+                        $this->integer('month'),
+                        $this->integer('year'),
+                        $ignoreBudgetId > 0 ? $ignoreBudgetId : null,
+                    );
+
+                    if ($hasConflict) {
+                        $validator->errors()->add(
+                            'category_id',
+                            'An active budget already exists for this category and month.',
+                        );
+                    }
+                }
+            }
+
+            if ($validator->errors()->isNotEmpty()) {
                 return;
             }
 
-            $validator->errors()->add(
-                'category_id',
-                'An active budget already exists for this category and month.',
-            );
+            if (
+                $action !== ApprovalVoucherAction::Delete
+                && (bool) $this->input('auto_submit', false)
+            ) {
+                if (
+                    $module === ApprovalVoucherModule::Budget
+                    && ! $this->filled('approval_memo_id')
+                ) {
+                    $validator->errors()->add(
+                        'approval_memo_id',
+                        'Select an approved memo before submitting this request.',
+                    );
+                }
+
+                if (! $this->hasFile('approval_memo_pdf')) {
+                    $validator->errors()->add(
+                        'approval_memo_pdf',
+                        'Upload the approval memo PDF before submitting this request.',
+                    );
+                }
+
+                if ($validator->errors()->isNotEmpty()) {
+                    return;
+                }
+            }
+
+            $this->validateAttachmentRules($validator);
         });
+    }
+
+    private function validateAttachmentRules(Validator $validator): void
+    {
+        $approvalVoucherId = (int) $this->route('approvalVoucher', 0);
+        $removeAttachmentIds = collect($this->input('remove_attachment_ids', []))
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($removeAttachmentIds->isNotEmpty() && $approvalVoucherId === 0) {
+            $validator->errors()->add(
+                'remove_attachment_ids',
+                'Attachments can only be removed from an existing voucher.',
+            );
+
+            return;
+        }
+
+        if ($removeAttachmentIds->isNotEmpty()) {
+            $matchedAttachmentCount = ApprovalVoucherAttachment::query()
+                ->where('approval_voucher_id', $approvalVoucherId)
+                ->where('kind', ApprovalVoucherAttachmentKind::SupportingDocument->value)
+                ->whereIn('id', $removeAttachmentIds)
+                ->count();
+
+            if ($matchedAttachmentCount !== $removeAttachmentIds->count()) {
+                $validator->errors()->add(
+                    'remove_attachment_ids',
+                    'One or more attachments could not be found for this voucher.',
+                );
+
+                return;
+            }
+        }
+
+        $existingAttachmentCount = $approvalVoucherId > 0
+            ? ApprovalVoucherAttachment::query()
+                ->where('approval_voucher_id', $approvalVoucherId)
+                ->where('kind', ApprovalVoucherAttachmentKind::SupportingDocument->value)
+                ->when(
+                    $removeAttachmentIds->isNotEmpty(),
+                    fn ($query) => $query->whereKeyNot($removeAttachmentIds->all()),
+                )
+                ->count()
+            : 0;
+
+        $newAttachmentCount = count(array_filter(
+            $this->file('attachments', []),
+            fn ($file) => $file instanceof UploadedFile,
+        ));
+
+        if ($existingAttachmentCount + $newAttachmentCount > 5) {
+            $validator->errors()->add(
+                'attachments',
+                'A voucher can only have up to 5 supporting documents.',
+            );
+        }
     }
 }

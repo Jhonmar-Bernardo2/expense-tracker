@@ -135,9 +135,9 @@ class BudgetTest extends TestCase
 
     public function test_admin_can_view_all_departments_and_create_budget_request_for_a_selected_department(): void
     {
-        $admin = User::factory()->admin()->create();
         $departmentA = Department::factory()->create(['name' => 'Finance']);
         $departmentB = Department::factory()->create(['name' => 'Operations']);
+        $admin = User::factory()->for($departmentA)->admin()->create();
         $staffA = User::factory()->for($departmentA)->create();
         $staffB = User::factory()->for($departmentB)->create();
         $category = $this->createCategory(['name' => 'Utilities']);
