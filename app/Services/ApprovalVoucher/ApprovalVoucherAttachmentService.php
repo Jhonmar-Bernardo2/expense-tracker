@@ -45,18 +45,6 @@ class ApprovalVoucherAttachmentService
             $storedFiles,
         );
 
-        if (($data['remove_approval_memo_pdf'] ?? false) === true) {
-            $this->clearApprovalMemoPdfAttachment($approvalVoucher);
-        }
-
-        if (($data['approval_memo_pdf'] ?? null) instanceof UploadedFile) {
-            $this->replaceApprovalMemoPdfAttachment(
-                $user,
-                $approvalVoucher,
-                $data['approval_memo_pdf'],
-                $storedFiles,
-            );
-        }
     }
 
     /**
@@ -65,60 +53,6 @@ class ApprovalVoucherAttachmentService
     public function cleanupStoredFiles(array $storedFiles): void
     {
         $this->deleteStoredFiles($storedFiles);
-    }
-
-    public function clearApprovalMemoPdfAttachment(ApprovalVoucher $approvalVoucher): void
-    {
-        $attachments = $approvalVoucher->attachments()
-            ->where('kind', ApprovalVoucherAttachmentKind::ApprovalMemoPdf->value)
-            ->get();
-
-        if ($attachments->isEmpty()) {
-            return;
-        }
-
-        $filesToDelete = $attachments
-            ->map(fn (ApprovalVoucherAttachment $attachment) => [
-                'disk' => $attachment->disk,
-                'path' => $attachment->path,
-            ])
-            ->all();
-
-        ApprovalVoucherAttachment::query()
-            ->whereKey($attachments->modelKeys())
-            ->delete();
-
-        DB::afterCommit(fn () => $this->deleteStoredFiles($filesToDelete));
-    }
-
-    public function replaceApprovalMemoPdfAttachment(
-        User $user,
-        ApprovalVoucher $approvalVoucher,
-        UploadedFile $upload,
-        array &$storedFiles = [],
-    ): ApprovalVoucherAttachment {
-        $this->clearApprovalMemoPdfAttachment($approvalVoucher);
-
-        return $this->storeAttachment(
-            $user,
-            $approvalVoucher,
-            $upload,
-            ApprovalVoucherAttachmentKind::ApprovalMemoPdf,
-            $storedFiles,
-        );
-    }
-
-    public function assertVoucherHasApprovalMemoPdfAttachment(ApprovalVoucher $approvalVoucher): ApprovalVoucherAttachment
-    {
-        $approvalVoucher->loadMissing('approvalMemoPdfAttachment');
-
-        if ($approvalVoucher->approvalMemoPdfAttachment === null) {
-            throw ValidationException::withMessages([
-                'approval_memo_pdf' => 'Upload the approval memo PDF before submitting this request.',
-            ]);
-        }
-
-        return $approvalVoucher->approvalMemoPdfAttachment;
     }
 
     /**
@@ -213,9 +147,7 @@ class ApprovalVoucherAttachmentService
             $filename .= ".{$extension}";
         }
 
-        $folder = $kind === ApprovalVoucherAttachmentKind::ApprovalMemoPdf
-            ? 'approval-memo-pdf'
-            : 'supporting-documents';
+        $folder = 'supporting-documents';
 
         $path = Storage::disk(self::DISK)->putFileAs(
             "approval-vouchers/{$approvalVoucher->getKey()}/{$folder}",
@@ -224,12 +156,8 @@ class ApprovalVoucherAttachmentService
         );
 
         if (! is_string($path) || $path === '') {
-            $errorField = $kind === ApprovalVoucherAttachmentKind::ApprovalMemoPdf
-                ? 'approval_memo_pdf'
-                : 'attachments';
-
             throw ValidationException::withMessages([
-                $errorField => 'Unable to store the uploaded attachment.',
+                'attachments' => 'Unable to store the uploaded attachment.',
             ]);
         }
 

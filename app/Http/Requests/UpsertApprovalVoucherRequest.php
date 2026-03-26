@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\ApprovalVoucherAction;
-use App\Enums\ApprovalVoucherAttachmentKind;
 use App\Enums\ApprovalVoucherModule;
 use App\Enums\TransactionType;
 use App\Models\ApprovalVoucherAttachment;
@@ -54,22 +53,6 @@ class UpsertApprovalVoucherRequest extends FormRequest
             'remarks' => [
                 'nullable',
                 'string',
-            ],
-            'approval_memo_id' => [
-                'nullable',
-                'integer',
-                Rule::exists('approval_memos', 'id'),
-            ],
-            'approval_memo_pdf' => [
-                'nullable',
-                'file',
-                'mimes:pdf',
-                'mimetypes:application/pdf',
-                'max:10240',
-            ],
-            'remove_approval_memo_pdf' => [
-                'sometimes',
-                'boolean',
             ],
             'auto_submit' => [
                 'sometimes',
@@ -168,30 +151,6 @@ class UpsertApprovalVoucherRequest extends FormRequest
             $module = ApprovalVoucherModule::tryFrom((string) $this->input('module'));
             $action = ApprovalVoucherAction::tryFrom((string) $this->input('action'));
 
-            if (
-                $action === ApprovalVoucherAction::Delete
-                && $this->filled('approval_memo_id')
-            ) {
-                $validator->errors()->add(
-                    'approval_memo_id',
-                    'Approval memo is only used for create and update requests.',
-                );
-
-                return;
-            }
-
-            if (
-                $action === ApprovalVoucherAction::Delete
-                && ($this->hasFile('approval_memo_pdf') || $this->boolean('remove_approval_memo_pdf'))
-            ) {
-                $validator->errors()->add(
-                    'approval_memo_pdf',
-                    'Approval memo PDF is only used for create and update requests.',
-                );
-
-                return;
-            }
-
             if ($module === ApprovalVoucherModule::Budget && $action !== ApprovalVoucherAction::Delete) {
                 $departmentId = $this->user()?->isAdmin()
                     ? $this->integer('department_id')
@@ -220,32 +179,6 @@ class UpsertApprovalVoucherRequest extends FormRequest
 
             if ($validator->errors()->isNotEmpty()) {
                 return;
-            }
-
-            if (
-                $action !== ApprovalVoucherAction::Delete
-                && (bool) $this->input('auto_submit', false)
-            ) {
-                if (
-                    $module === ApprovalVoucherModule::Budget
-                    && ! $this->filled('approval_memo_id')
-                ) {
-                    $validator->errors()->add(
-                        'approval_memo_id',
-                        'Select an approved memo before submitting this request.',
-                    );
-                }
-
-                if (! $this->hasFile('approval_memo_pdf')) {
-                    $validator->errors()->add(
-                        'approval_memo_pdf',
-                        'Upload the approval memo PDF before submitting this request.',
-                    );
-                }
-
-                if ($validator->errors()->isNotEmpty()) {
-                    return;
-                }
             }
 
             $this->validateAttachmentRules($validator);

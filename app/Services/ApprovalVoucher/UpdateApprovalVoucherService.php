@@ -12,7 +12,6 @@ class UpdateApprovalVoucherService
 {
     public function __construct(
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
-        private readonly \App\Services\ApprovalMemo\ApprovalMemoLinkService $approvalMemoLinkService,
         private readonly ApprovalVoucherAttachmentService $approvalVoucherAttachmentService,
         private readonly ActivityLogService $activityLogService,
     ) {}
@@ -33,19 +32,9 @@ class UpdateApprovalVoucherService
         try {
             return DB::transaction(function () use ($user, $approvalVoucher, $data, &$storedFiles): ApprovalVoucher {
                 $payload = $this->approvalVoucherPayloadService->buildDraftPayload($user, $data);
-                $previousApprovalMemoId = $approvalVoucher->approval_memo_id;
-                $approvalMemo = $this->approvalMemoLinkService->resolveForDraft(
-                    $user,
-                    $payload['module'],
-                    $payload['action'],
-                    $payload['department_id'],
-                    isset($data['approval_memo_id']) ? (int) $data['approval_memo_id'] : null,
-                    $approvalVoucher,
-                );
 
                 $approvalVoucher->update([
                     'department_id' => $payload['department_id'],
-                    'approval_memo_id' => $approvalMemo?->id,
                     'module' => $payload['module']->value,
                     'action' => $payload['action']->value,
                     'target_id' => $payload['target_id'],
@@ -55,10 +44,6 @@ class UpdateApprovalVoucherService
                 ]);
 
                 $approvalVoucher = $approvalVoucher->refresh();
-
-                if ($previousApprovalMemoId !== $approvalMemo?->id) {
-                    $this->approvalVoucherAttachmentService->clearApprovalMemoPdfAttachment($approvalVoucher);
-                }
 
                 $this->approvalVoucherAttachmentService->syncForVoucher(
                     $user,

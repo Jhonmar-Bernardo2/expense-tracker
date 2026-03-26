@@ -12,8 +12,6 @@ class SubmitApprovalVoucherService
 {
     public function __construct(
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
-        private readonly \App\Services\ApprovalMemo\ApprovalMemoLinkService $approvalMemoLinkService,
-        private readonly ApprovalVoucherAttachmentService $approvalVoucherAttachmentService,
         private readonly ActivityLogService $activityLogService,
         private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
     ) {}
@@ -28,14 +26,6 @@ class SubmitApprovalVoucherService
 
         $target = $this->approvalVoucherPayloadService->resolveTargetForApproval($approvalVoucher);
         $this->approvalVoucherPayloadService->assertCanApply($approvalVoucher, $target);
-
-        if ($approvalVoucher->action !== \App\Enums\ApprovalVoucherAction::Delete) {
-            if ($approvalVoucher->module === \App\Enums\ApprovalVoucherModule::Budget) {
-                $this->approvalMemoLinkService->assertVoucherCanBeSubmitted($approvalVoucher);
-            }
-
-            $this->approvalVoucherAttachmentService->assertVoucherHasApprovalMemoPdfAttachment($approvalVoucher);
-        }
 
         $approvalVoucher->update([
             'status' => ApprovalVoucherStatus::PendingApproval->value,

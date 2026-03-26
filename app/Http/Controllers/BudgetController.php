@@ -3,9 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\IndexBudgetRequest;
-use App\Http\Resources\ApprovalMemoOptionResource;
 use App\Http\Resources\BudgetResource;
-use App\Repositories\ApprovalMemoRepository;
 use App\Repositories\BudgetRepository;
 use App\Repositories\CategoryRepository;
 use App\Services\Department\DepartmentScopeService;
@@ -18,7 +16,6 @@ class BudgetController extends Controller
     public function __construct(
         private readonly BudgetRepository $budgetRepository,
         private readonly CategoryRepository $categoryRepository,
-        private readonly ApprovalMemoRepository $approvalMemoRepository,
         private readonly DepartmentScopeService $departmentScopeService,
     ) {
     }
@@ -53,9 +50,6 @@ class BudgetController extends Controller
                     'name' => $department->name,
                 ])
                 ->values(),
-            'available_approval_memos' => ApprovalMemoOptionResource::collection(
-                $this->approvalMemoRepository->getEligibleApprovedForUser($request->user())
-            ),
             'filters' => [
                 'month' => $month,
                 'year' => $year,

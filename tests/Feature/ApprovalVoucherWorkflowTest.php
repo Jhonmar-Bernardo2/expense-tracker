@@ -11,12 +11,10 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
-use Tests\Concerns\CreatesApprovalMemos;
 
 class ApprovalVoucherWorkflowTest extends TestCase
 {
     use RefreshDatabase;
-    use CreatesApprovalMemos;
 
     public function test_transaction_create_request_only_posts_after_admin_approval(): void
     {
@@ -27,11 +25,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
             'name' => 'Food',
             'type' => 'expense',
         ]);
-        $approvalMemo = $this->createApprovedMemo($staff, $department, [
-            'module' => 'transaction',
-            'action' => 'create',
-        ]);
-
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
                 'module' => 'transaction',
@@ -43,8 +36,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
                 'amount' => 450,
                 'description' => 'Monthly team lunch',
                 'transaction_date' => '2026-03-24',
-                'approval_memo_id' => $approvalMemo->id,
-                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
             ])
             ->assertRedirect();
 
@@ -96,11 +87,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
             'description' => null,
             'transaction_date' => '2026-03-24',
         ]);
-        $updateMemo = $this->createApprovedMemo($staff, $department, [
-            'module' => 'transaction',
-            'action' => 'update',
-        ]);
-
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
                 'module' => 'transaction',
@@ -113,8 +99,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
                 'amount' => 300,
                 'description' => 'Updated amount',
                 'transaction_date' => '2026-03-24',
-                'approval_memo_id' => $updateMemo->id,
-                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
             ])
             ->assertRedirect();
 
@@ -194,11 +178,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
             'name' => 'Office supplies',
             'type' => 'expense',
         ]);
-        $createMemo = $this->createApprovedMemo($staff, $department, [
-            'module' => 'budget',
-            'action' => 'create',
-        ]);
-
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
                 'module' => 'budget',
@@ -208,8 +187,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
                 'month' => 3,
                 'year' => 2026,
                 'amount_limit' => 1200,
-                'approval_memo_id' => $createMemo->id,
-                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
             ])
             ->assertRedirect();
 
@@ -228,11 +205,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
             ->assertRedirect();
 
         $budget = Budget::query()->firstOrFail();
-        $updateMemo = $this->createApprovedMemo($staff, $department, [
-            'module' => 'budget',
-            'action' => 'update',
-        ]);
-
         $this->assertSame($createVoucher->id, $budget->origin_approval_voucher_id);
         $this->assertSame('1200.00', (string) $budget->amount_limit);
 
@@ -246,8 +218,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
                 'month' => 3,
                 'year' => 2026,
                 'amount_limit' => 1500,
-                'approval_memo_id' => $updateMemo->id,
-                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
             ])
             ->assertRedirect();
 
@@ -314,11 +284,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
             'name' => 'Miscellaneous income',
             'type' => 'income',
         ]);
-        $approvalMemo = $this->createApprovedMemo($admin, $department, [
-            'module' => 'transaction',
-            'action' => 'create',
-        ]);
-
         $this->actingAs($admin)
             ->post(route('approval-vouchers.store'), [
                 'module' => 'transaction',
@@ -330,8 +295,6 @@ class ApprovalVoucherWorkflowTest extends TestCase
                 'amount' => 500,
                 'description' => null,
                 'transaction_date' => '2026-03-24',
-                'approval_memo_id' => $approvalMemo->id,
-                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
             ])
             ->assertRedirect();
 

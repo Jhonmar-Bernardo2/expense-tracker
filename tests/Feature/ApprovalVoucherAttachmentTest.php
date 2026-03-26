@@ -14,12 +14,10 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
-use Tests\Concerns\CreatesApprovalMemos;
 
 class ApprovalVoucherAttachmentTest extends TestCase
 {
     use RefreshDatabase;
-    use CreatesApprovalMemos;
 
     public function test_transaction_request_can_be_created_with_supporting_documents(): void
     {
@@ -31,11 +29,6 @@ class ApprovalVoucherAttachmentTest extends TestCase
             'name' => 'Meals',
             'type' => 'expense',
         ]);
-        $approvalMemo = $this->createApprovedMemo($staff, $department, [
-            'module' => 'transaction',
-            'action' => 'create',
-        ]);
-
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
                 'module' => 'transaction',
@@ -47,8 +40,6 @@ class ApprovalVoucherAttachmentTest extends TestCase
                 'amount' => 450,
                 'description' => 'Monthly lunch',
                 'transaction_date' => '2026-03-24',
-                'approval_memo_id' => $approvalMemo->id,
-                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
                 'remarks' => 'Includes official receipt.',
                 'attachments' => [
                     UploadedFile::fake()->create('receipt.pdf', 120, 'application/pdf'),
@@ -62,18 +53,12 @@ class ApprovalVoucherAttachmentTest extends TestCase
             ->where('approval_voucher_id', $approvalVoucher->id)
             ->where('kind', ApprovalVoucherAttachmentKind::SupportingDocument->value)
             ->sole();
-        $memoPdfAttachment = ApprovalVoucherAttachment::query()
-            ->where('approval_voucher_id', $approvalVoucher->id)
-            ->where('kind', ApprovalVoucherAttachmentKind::ApprovalMemoPdf->value)
-            ->sole();
 
         $this->assertSame('pending_approval', $approvalVoucher->status->value);
         $this->assertSame($approvalVoucher->id, $supportingAttachment->approval_voucher_id);
         $this->assertSame($staff->id, $supportingAttachment->uploaded_by);
         $this->assertSame('receipt.pdf', $supportingAttachment->original_name);
-        $this->assertSame('approval-memo.pdf', $memoPdfAttachment->original_name);
         Storage::disk('local')->assertExists($supportingAttachment->path);
-        Storage::disk('local')->assertExists($memoPdfAttachment->path);
     }
 
     public function test_budget_request_can_be_created_with_supporting_documents(): void
@@ -86,11 +71,6 @@ class ApprovalVoucherAttachmentTest extends TestCase
             'name' => 'Office supplies',
             'type' => 'expense',
         ]);
-        $approvalMemo = $this->createApprovedMemo($staff, $department, [
-            'module' => 'budget',
-            'action' => 'create',
-        ]);
-
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
                 'module' => 'budget',
@@ -100,8 +80,6 @@ class ApprovalVoucherAttachmentTest extends TestCase
                 'month' => 3,
                 'year' => 2026,
                 'amount_limit' => 1200,
-                'approval_memo_id' => $approvalMemo->id,
-                'approval_memo_pdf' => $this->makeApprovalMemoPdfUpload(),
                 'remarks' => 'Vendor quote attached.',
                 'attachments' => [
                     UploadedFile::fake()->create('quote.png', 200, 'image/png'),
@@ -113,15 +91,10 @@ class ApprovalVoucherAttachmentTest extends TestCase
         $attachment = ApprovalVoucherAttachment::query()
             ->where('kind', ApprovalVoucherAttachmentKind::SupportingDocument->value)
             ->sole();
-        $memoPdfAttachment = ApprovalVoucherAttachment::query()
-            ->where('kind', ApprovalVoucherAttachmentKind::ApprovalMemoPdf->value)
-            ->sole();
 
         $this->assertSame('quote.png', $attachment->original_name);
         $this->assertSame('image/png', $attachment->mime_type);
-        $this->assertSame('approval-memo.pdf', $memoPdfAttachment->original_name);
         Storage::disk('local')->assertExists($attachment->path);
-        Storage::disk('local')->assertExists($memoPdfAttachment->path);
     }
 
     public function test_delete_request_can_be_created_with_attachments_and_remarks(): void
@@ -300,7 +273,6 @@ class ApprovalVoucherAttachmentTest extends TestCase
                 ->where('approval_voucher.attachments.0.name', 'receipt.pdf')
                 ->where('approval_voucher.attachments.0.size_bytes', 512)
                 ->where('approval_voucher.attachments.0.download_url', $downloadUrl)
-                ->where('approval_voucher.approval_memo_pdf_attachment.name', 'approval-memo.pdf')
             );
 
         $this->actingAs($requester)
@@ -310,7 +282,6 @@ class ApprovalVoucherAttachmentTest extends TestCase
                 ->component('ApprovalVouchers/Print')
                 ->where('approval_voucher.attachments.0.name', 'receipt.pdf')
                 ->where('approval_voucher.attachments.0.mime_type', 'application/pdf')
-                ->where('approval_voucher.approval_memo_pdf_attachment.name', 'approval-memo.pdf')
             );
     }
 
@@ -334,17 +305,11 @@ class ApprovalVoucherAttachmentTest extends TestCase
             'type' => 'expense',
         ]);
 
-        $approvalMemo = $this->createApprovedMemo($requester, $department, [
-            'module' => 'transaction',
-            'action' => 'create',
-        ]);
-
         $approvalVoucher = ApprovalVoucher::query()->create(array_merge([
             'voucher_no' => 'AV-2026-00001',
             'department_id' => $department->id,
             'requested_by' => $requester->id,
             'approved_by' => $approver->id,
-            'approval_memo_id' => $approvalMemo->id,
             'module' => 'transaction',
             'action' => 'create',
             'status' => 'draft',
@@ -370,10 +335,8 @@ class ApprovalVoucherAttachmentTest extends TestCase
         ], $overrides));
 
         $path = "approval-vouchers/{$approvalVoucher->id}/supporting-documents/receipt.pdf";
-        $memoPdfPath = "approval-vouchers/{$approvalVoucher->id}/approval-memo-pdf/approval-memo.pdf";
 
         Storage::disk('local')->put($path, 'fake-pdf-content');
-        Storage::disk('local')->put($memoPdfPath, 'fake-memo-pdf-content');
 
         $attachment = ApprovalVoucherAttachment::query()->create([
             'approval_voucher_id' => $approvalVoucher->id,
@@ -386,19 +349,6 @@ class ApprovalVoucherAttachmentTest extends TestCase
             'size_bytes' => 512,
             'created_at' => '2026-03-24 09:05:00',
             'updated_at' => '2026-03-24 09:05:00',
-        ]);
-
-        ApprovalVoucherAttachment::query()->create([
-            'approval_voucher_id' => $approvalVoucher->id,
-            'uploaded_by' => $requester->id,
-            'kind' => ApprovalVoucherAttachmentKind::ApprovalMemoPdf->value,
-            'original_name' => 'approval-memo.pdf',
-            'disk' => 'local',
-            'path' => $memoPdfPath,
-            'mime_type' => 'application/pdf',
-            'size_bytes' => 640,
-            'created_at' => '2026-03-24 09:06:00',
-            'updated_at' => '2026-03-24 09:06:00',
         ]);
 
         return [$approvalVoucher, $requester, $attachment];

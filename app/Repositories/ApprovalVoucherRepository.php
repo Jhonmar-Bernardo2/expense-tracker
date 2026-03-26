@@ -28,8 +28,6 @@ class ApprovalVoucherRepository
                 'department:id,name',
                 'requestedBy:id,name,email',
                 'approvedBy:id,name,email',
-                'approvalMemo:id,memo_no,status,department_id,module,action,approved_at,remarks',
-                'approvalMemo.department:id,name',
             ])
             ->when(
                 $filters['status'] ?? null,
@@ -118,8 +116,6 @@ class ApprovalVoucherRepository
             'requestedBy:id,name,email',
             'approvedBy:id,name,email',
             'supportingAttachments',
-            'approvalMemoPdfAttachment',
-            'approvalMemo.department:id,name',
         ];
     }
 }

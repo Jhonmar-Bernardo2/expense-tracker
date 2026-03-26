@@ -21,7 +21,6 @@ class ApprovalVoucherResource extends JsonResource
             'department_id' => $this->department_id,
             'requested_by' => $this->requested_by,
             'approved_by' => $this->approved_by,
-            'approval_memo_id' => $this->approval_memo_id,
             'module' => $this->module->value,
             'module_label' => $this->module->label(),
             'action' => $this->action->value,
@@ -51,17 +50,8 @@ class ApprovalVoucherResource extends JsonResource
                 'name' => $this->requestedBy->name,
                 'email' => $this->requestedBy->email,
             ]),
-            'approval_memo' => $this->whenLoaded('approvalMemo', fn () => $this->approvalMemo === null
-                ? null
-                : new ApprovalMemoSummaryResource($this->approvalMemo)),
             'attachments' => ApprovalVoucherAttachmentResource::collection(
                 $this->relationLoaded('supportingAttachments') ? $this->supportingAttachments : collect(),
-            ),
-            'approval_memo_pdf_attachment' => $this->whenLoaded(
-                'approvalMemoPdfAttachment',
-                fn () => $this->approvalMemoPdfAttachment === null
-                    ? null
-                    : new ApprovalVoucherAttachmentResource($this->approvalMemoPdfAttachment),
             ),
             'approved_by_user' => $this->whenLoaded('approvedBy', fn () => $this->approvedBy === null
                 ? null

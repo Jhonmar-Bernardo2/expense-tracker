@@ -12,10 +12,8 @@ use App\Http\Requests\RejectApprovalVoucherRequest;
 use App\Http\Requests\SubmitApprovalVoucherRequest;
 use App\Http\Requests\UpsertApprovalVoucherRequest;
 use App\Http\Resources\ActivityLogResource;
-use App\Http\Resources\ApprovalMemoOptionResource;
 use App\Http\Resources\ApprovalVoucherResource;
 use App\Repositories\ActivityLogRepository;
-use App\Repositories\ApprovalMemoRepository;
 use App\Repositories\ApprovalVoucherRepository;
 use App\Repositories\CategoryRepository;
 use App\Services\ApprovalVoucher\ApproveApprovalVoucherService;
@@ -34,7 +32,6 @@ class ApprovalVoucherController extends Controller
     public function __construct(
         private readonly ApprovalVoucherRepository $approvalVoucherRepository,
         private readonly ActivityLogRepository $activityLogRepository,
-        private readonly ApprovalMemoRepository $approvalMemoRepository,
         private readonly CategoryRepository $categoryRepository,
         private readonly DepartmentScopeService $departmentScopeService,
     ) {}
@@ -97,9 +94,6 @@ class ApprovalVoucherController extends Controller
     public function show(Request $request, int $approvalVoucher): Response
     {
         $approvalVoucher = $this->approvalVoucherRepository->findForViewerOrFail($request->user(), $approvalVoucher);
-        $availableApprovalMemos = $approvalVoucher->canEditRequest($request->user())
-            ? $this->approvalMemoRepository->getEligibleApprovedForUser($request->user(), $approvalVoucher->id)
-            : collect();
 
         return Inertia::render('ApprovalVouchers/Show', [
             'approval_voucher' => new ApprovalVoucherResource($approvalVoucher),
@@ -124,7 +118,6 @@ class ApprovalVoucherController extends Controller
                 'value' => $type->value,
                 'label' => str($type->value)->headline()->toString(),
             ])->values(),
-            'available_approval_memos' => ApprovalMemoOptionResource::collection($availableApprovalMemos),
         ]);
     }
 

@@ -1,13 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
-import {
-    CheckCheck,
-    FileText,
-    Plus,
-    Receipt,
-    Search,
-    ShieldCheck,
-} from 'lucide-vue-next';
+import { CheckCheck, FileText, Search, ShieldCheck } from 'lucide-vue-next';
 import { ref } from 'vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -49,8 +42,6 @@ import {
     index as approvalVoucherIndex,
     show as approvalVoucherShow,
 } from '@/routes/approval-vouchers';
-import { index as budgets } from '@/routes/budgets';
-import { index as transactions } from '@/routes/transactions';
 import type {
     ApprovalVoucher,
     BreadcrumbItem,
@@ -182,21 +173,6 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                 Transaction and budget changes only affect final
                                 records after admin approval.
                             </CardDescription>
-                        </div>
-
-                        <div class="flex flex-col gap-2 sm:flex-row">
-                            <Button as-child variant="outline">
-                                <Link :href="transactions()">
-                                    <Receipt class="mr-2 size-4" />
-                                    Request transaction
-                                </Link>
-                            </Button>
-                            <Button as-child>
-                                <Link :href="budgets()">
-                                    <Plus class="mr-2 size-4" />
-                                    Request budget
-                                </Link>
-                            </Button>
                         </div>
                     </CardHeader>
                     <CardContent class="grid gap-4 sm:grid-cols-3">

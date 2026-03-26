@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\ApprovalMemo;
 use App\Models\ApprovalVoucher;
 use App\Models\Budget;
 use App\Models\Transaction;
@@ -26,17 +25,6 @@ class ActivityLogService
         );
     }
 
-    public function logApprovalMemoCreated(User $actor, ApprovalMemo $approvalMemo): void
-    {
-        $this->activityLogRepository->createForApprovalMemo(
-            $approvalMemo,
-            $actor,
-            'approval_memo.created',
-            'Memo request created.',
-            $this->memoMeta($approvalMemo),
-        );
-    }
-
     public function logApprovalVoucherUpdated(User $actor, ApprovalVoucher $approvalVoucher): void
     {
         $this->activityLogRepository->createForApprovalVoucher(
@@ -45,17 +33,6 @@ class ActivityLogService
             'approval_voucher.updated',
             'Request updated.',
             $this->baseMeta($approvalVoucher),
-        );
-    }
-
-    public function logApprovalMemoUpdated(User $actor, ApprovalMemo $approvalMemo): void
-    {
-        $this->activityLogRepository->createForApprovalMemo(
-            $approvalMemo,
-            $actor,
-            'approval_memo.updated',
-            'Memo request updated.',
-            $this->memoMeta($approvalMemo),
         );
     }
 
@@ -70,17 +47,6 @@ class ActivityLogService
         );
     }
 
-    public function logApprovalMemoSubmitted(User $actor, ApprovalMemo $approvalMemo): void
-    {
-        $this->activityLogRepository->createForApprovalMemo(
-            $approvalMemo,
-            $actor,
-            'approval_memo.submitted',
-            'Memo request submitted for approval.',
-            $this->memoMeta($approvalMemo),
-        );
-    }
-
     public function logApprovalVoucherApproved(User $actor, ApprovalVoucher $approvalVoucher): void
     {
         $this->activityLogRepository->createForApprovalVoucher(
@@ -89,28 +55,6 @@ class ActivityLogService
             'approval_voucher.approved',
             'Request approved and applied.',
             $this->baseMeta($approvalVoucher),
-        );
-    }
-
-    public function logApprovedMemoUploaded(User $actor, ApprovalMemo $approvalMemo): void
-    {
-        $this->activityLogRepository->createForApprovalMemo(
-            $approvalMemo,
-            $actor,
-            'approval_memo.official_file_uploaded',
-            'Approved memo document uploaded.',
-            $this->memoMeta($approvalMemo),
-        );
-    }
-
-    public function logApprovalMemoApproved(User $actor, ApprovalMemo $approvalMemo): void
-    {
-        $this->activityLogRepository->createForApprovalMemo(
-            $approvalMemo,
-            $actor,
-            'approval_memo.approved',
-            'Memo request approved.',
-            $this->memoMeta($approvalMemo),
         );
     }
 
@@ -124,30 +68,6 @@ class ActivityLogService
             array_merge($this->baseMeta($approvalVoucher), [
                 'rejection_reason' => $approvalVoucher->rejection_reason,
             ]),
-        );
-    }
-
-    public function logApprovalMemoRejected(User $actor, ApprovalMemo $approvalMemo): void
-    {
-        $this->activityLogRepository->createForApprovalMemo(
-            $approvalMemo,
-            $actor,
-            'approval_memo.rejected',
-            'Memo request rejected.',
-            array_merge($this->memoMeta($approvalMemo), [
-                'rejection_reason' => $approvalMemo->rejection_reason,
-            ]),
-        );
-    }
-
-    public function logApprovalMemoDeleted(User $actor, ApprovalMemo $approvalMemo): void
-    {
-        $this->activityLogRepository->createForApprovalMemo(
-            $approvalMemo,
-            $actor,
-            'approval_memo.deleted',
-            'Memo request deleted.',
-            $this->memoMeta($approvalMemo),
         );
     }
 
@@ -198,19 +118,6 @@ class ActivityLogService
             'action' => $approvalVoucher->action->value,
             'status' => $approvalVoucher->status->value,
             'target_id' => $approvalVoucher->target_id,
-        ];
-    }
-
-    /**
-     * @return array<string, mixed>
-     */
-    private function memoMeta(ApprovalMemo $approvalMemo): array
-    {
-        return [
-            'memo_no' => $approvalMemo->memo_no,
-            'module' => $approvalMemo->module->value,
-            'action' => $approvalMemo->action->value,
-            'status' => $approvalMemo->status->value,
         ];
     }
 }

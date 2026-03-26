@@ -14,7 +14,6 @@ class StoreApprovalVoucherService
     public function __construct(
         private readonly ApprovalVoucherRepository $approvalVoucherRepository,
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
-        private readonly \App\Services\ApprovalMemo\ApprovalMemoLinkService $approvalMemoLinkService,
         private readonly ApprovalVoucherAttachmentService $approvalVoucherAttachmentService,
         private readonly ActivityLogService $activityLogService,
         private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
@@ -31,30 +30,11 @@ class StoreApprovalVoucherService
             return DB::transaction(function () use ($user, $data, &$storedFiles): ApprovalVoucher {
                 $payload = $this->approvalVoucherPayloadService->buildDraftPayload($user, $data);
                 $shouldAutoSubmit = (bool) ($data['auto_submit'] ?? false);
-                $approvalMemo = $this->approvalMemoLinkService->resolveForDraft(
-                    $user,
-                    $payload['module'],
-                    $payload['action'],
-                    $payload['department_id'],
-                    isset($data['approval_memo_id']) ? (int) $data['approval_memo_id'] : null,
-                );
-
-                if (
-                    $shouldAutoSubmit
-                    && $payload['module'] === \App\Enums\ApprovalVoucherModule::Budget
-                    && $payload['action'] !== \App\Enums\ApprovalVoucherAction::Delete
-                    && $approvalMemo === null
-                ) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'approval_memo_id' => 'An approved memo is required before submitting this request.',
-                    ]);
-                }
 
                 $approvalVoucher = ApprovalVoucher::query()->create([
                     'voucher_no' => 'PENDING',
                     'department_id' => $payload['department_id'],
                     'requested_by' => $user->id,
-                    'approval_memo_id' => $approvalMemo?->id,
                     'module' => $payload['module']->value,
                     'action' => $payload['action']->value,
                     'status' => $shouldAutoSubmit
@@ -79,10 +59,6 @@ class StoreApprovalVoucherService
                     $data,
                     $storedFiles,
                 );
-
-                if ($shouldAutoSubmit && $payload['action'] !== \App\Enums\ApprovalVoucherAction::Delete) {
-                    $this->approvalVoucherAttachmentService->assertVoucherHasApprovalMemoPdfAttachment($approvalVoucher);
-                }
 
                 $this->activityLogService->logApprovalVoucherCreated($user, $approvalVoucher);
 

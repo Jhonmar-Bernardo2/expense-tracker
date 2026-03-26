@@ -2,20 +2,16 @@
 
 namespace Tests\Feature;
 
-use App\Enums\ApprovalVoucherAttachmentKind;
-use App\Models\ApprovalVoucherAttachment;
 use App\Models\ApprovalVoucher;
 use App\Models\Category;
 use App\Models\Department;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
-use Tests\Concerns\CreatesApprovalMemos;
 use Tests\TestCase;
 
 class ApprovalVoucherPrintTest extends TestCase
 {
-    use CreatesApprovalMemos;
     use RefreshDatabase;
 
     public function test_requester_can_open_print_view_for_their_approval_voucher(): void
@@ -37,8 +33,6 @@ class ApprovalVoucherPrintTest extends TestCase
                 ->where('approval_voucher.remarks', 'Approved by finance.')
                 ->where('approval_voucher.requested_by_user.name', $requester->name)
                 ->where('approval_voucher.approved_by_user.name', 'Finance Admin')
-                ->where('approval_voucher.approval_memo.memo_no', 'AM-2026-30001')
-                ->where('approval_voucher.approval_memo_pdf_attachment.name', 'approval-memo.pdf')
                 ->has('categories', 1)
                 ->has('departments', 1)
             );
@@ -158,21 +152,11 @@ class ApprovalVoucherPrintTest extends TestCase
             'transaction_date' => '2026-03-24',
         ];
 
-        $action = (string) ($overrides['action'] ?? 'update');
-        $approvalMemo = $action === 'delete'
-            ? null
-            : $this->createApprovedMemo($requester, $department, [
-                'module' => 'transaction',
-                'action' => $action,
-                'memo_no' => 'AM-2026-30001',
-            ]);
-
         $voucher = ApprovalVoucher::query()->create(array_merge([
             'voucher_no' => sprintf('AV-2026-%05d', $sequence),
             'department_id' => $department->id,
             'requested_by' => $requester->id,
             'approved_by' => $approver->id,
-            'approval_memo_id' => $approvalMemo?->id,
             'module' => 'transaction',
             'action' => 'update',
             'status' => 'pending_approval',
@@ -196,21 +180,6 @@ class ApprovalVoucherPrintTest extends TestCase
             'created_at' => '2026-03-24 09:00:00',
             'updated_at' => '2026-03-24 09:30:00',
         ], collect($overrides)->except(['before_payload', 'after_payload'])->all()));
-
-        if ($approvalMemo !== null) {
-            ApprovalVoucherAttachment::query()->create([
-                'approval_voucher_id' => $voucher->id,
-                'uploaded_by' => $requester->id,
-                'kind' => ApprovalVoucherAttachmentKind::ApprovalMemoPdf->value,
-                'original_name' => 'approval-memo.pdf',
-                'disk' => 'local',
-                'path' => "approval-vouchers/{$voucher->id}/approval-memo-pdf/approval-memo.pdf",
-                'mime_type' => 'application/pdf',
-                'size_bytes' => 640,
-                'created_at' => '2026-03-24 09:31:00',
-                'updated_at' => '2026-03-24 09:31:00',
-            ]);
-        }
 
         return [$voucher, $requester, $approver];
     }

@@ -1,14 +1,6 @@
 <script setup lang="ts">
-import { Head, router, useForm } from '@inertiajs/vue3';
-import {
-    Building2,
-    FileUp,
-    Pencil,
-    Plus,
-    Receipt,
-    Trash2,
-    X,
-} from 'lucide-vue-next';
+import { Head, router, useForm, usePage } from '@inertiajs/vue3';
+import { Building2, Pencil, Plus, Receipt, Trash2 } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import { Badge } from '@/components/ui/badge';
@@ -46,7 +38,6 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Spinner } from '@/components/ui/spinner';
 import {
     Table,
@@ -57,11 +48,11 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { formatFileSize, PDF_ONLY_ACCEPT } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { store as storeApprovalVoucher } from '@/routes/approval-vouchers';
 import { index } from '@/routes/transactions';
 import type {
+    User,
     BreadcrumbItem,
     Category,
     CategoryType,
@@ -96,6 +87,8 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Transactions', href: index() },
 ];
 
+const page = usePage();
+
 const months = [
     { value: 1, label: 'January' },
     { value: 2, label: 'February' },
@@ -123,11 +116,15 @@ const selectedDepartment = ref<number | 'all'>(
     props.filters.department ?? 'all',
 );
 const search = ref(props.filters.search ?? '');
-const approvalMemoPdfInput = ref<HTMLInputElement | null>(null);
 
 const canSelectDepartment = computed(
     () => props.department_scope.can_select_department,
 );
+const currentUser = computed(() => page.props.auth.user as User | null);
+const canRequestTransaction = computed(
+    () => currentUser.value?.role === 'staff',
+);
+
 const departmentLabel = computed(() =>
     props.department_scope.is_all_departments
         ? 'All departments'
@@ -146,7 +143,6 @@ const form = useForm({
     amount: '',
     description: '',
     transaction_date: new Date().toISOString().slice(0, 10),
-    approval_memo_pdf: null as File | null,
     remarks: '',
 });
 
@@ -167,9 +163,6 @@ const filterCategories = computed(() =>
 const formCategories = computed(() =>
     props.categories.filter((category) => category.type === form.type),
 );
-const approvalMemoPdfError = computed(
-    () => form.errors.approval_memo_pdf ?? undefined,
-);
 
 watch(
     () => form.type,
@@ -186,36 +179,16 @@ watch(
     },
 );
 
-const clearFileInput = (input: HTMLInputElement | null) => {
-    if (input !== null) {
-        input.value = '';
-    }
-};
-
-const handleApprovalMemoPdfChange = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-
-    form.approval_memo_pdf = target.files?.[0] ?? null;
-    clearFileInput(target);
-};
-
-const clearApprovalMemoPdf = () => {
-    form.approval_memo_pdf = null;
-    clearFileInput(approvalMemoPdfInput.value);
-};
-
 const resetForm = () => {
     form.reset();
     form.clearErrors();
     form.type = selectedType.value === 'all' ? 'expense' : selectedType.value;
     form.transaction_date = new Date().toISOString().slice(0, 10);
-    form.approval_memo_pdf = null;
     form.remarks = '';
     form.department_id =
         props.department_scope.department_id ??
         props.departments[0]?.id ??
         null;
-    clearFileInput(approvalMemoPdfInput.value);
 
     if (canSelectDepartment.value && selectedDepartment.value !== 'all') {
         form.department_id = selectedDepartment.value;
@@ -242,10 +215,8 @@ const openEditDialog = (transaction: Transaction) => {
     form.description = transaction.description ?? '';
     form.transaction_date =
         transaction.transaction_date ?? new Date().toISOString().slice(0, 10);
-    form.approval_memo_pdf = null;
     form.remarks = '';
     form.clearErrors();
-    clearFileInput(approvalMemoPdfInput.value);
     isDialogOpen.value = true;
 };
 
@@ -317,18 +288,20 @@ const submitDeleteRequest = () => {
         return;
     }
 
-    deleteForm.transform((data) => ({
-        ...data,
-        module: 'transaction',
-        action: 'delete',
-        target_id: deletingTransaction.value?.id ?? data.target_id,
-        department_id:
-            deletingTransaction.value?.department_id ?? data.department_id,
-        auto_submit: true,
-    })).post(storeApprovalVoucher().url, {
-        preserveScroll: true,
-        forceFormData: true,
-    });
+    deleteForm
+        .transform((data) => ({
+            ...data,
+            module: 'transaction',
+            action: 'delete',
+            target_id: deletingTransaction.value?.id ?? data.target_id,
+            department_id:
+                deletingTransaction.value?.department_id ?? data.department_id,
+            auto_submit: true,
+        }))
+        .post(storeApprovalVoucher().url, {
+            preserveScroll: true,
+            forceFormData: true,
+        });
 };
 </script>
 
@@ -349,10 +322,14 @@ const submitDeleteRequest = () => {
                             </CardTitle>
                             <CardDescription
                                 >Final approved income and expense records. New
-                                changes must go through approval vouchers.</CardDescription
+                                changes must go through approval
+                                vouchers.</CardDescription
                             >
                         </div>
-                        <Dialog v-model:open="isDialogOpen">
+                        <Dialog
+                            v-if="canRequestTransaction"
+                            v-model:open="isDialogOpen"
+                        >
                             <DialogTrigger as-child>
                                 <Button
                                     class="w-full sm:w-auto"
@@ -363,7 +340,9 @@ const submitDeleteRequest = () => {
                                 </Button>
                             </DialogTrigger>
 
-                            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+                            <DialogContent
+                                class="gap-3 border-border/80 bg-background p-4 sm:max-w-4xl sm:p-5"
+                            >
                                 <DialogHeader>
                                     <DialogTitle>{{
                                         editingTransaction
@@ -371,21 +350,28 @@ const submitDeleteRequest = () => {
                                             : 'Request transaction'
                                     }}</DialogTitle>
                                     <DialogDescription>
-                                        Fill in the transaction details, then
-                                        upload the approval memo PDF before
-                                        submitting for approval.
+                                        Complete the required fields, then
+                                        review the approval actions before
+                                        submission.
                                     </DialogDescription>
                                 </DialogHeader>
 
                                 <form
-                                    class="space-y-5"
+                                    class="space-y-4"
                                     @submit.prevent="submit(false)"
                                 >
-                                    <div class="space-y-5 rounded-xl border bg-muted/10 p-5">
+                                    <div
+                                        class="space-y-4 rounded-2xl border border-border/80 bg-muted/10 p-4"
+                                    >
                                         <div class="space-y-1">
-                                            <h3 class="text-base font-semibold">Transaction Details</h3>
-                                            <p class="text-sm text-muted-foreground">
-                                                Complete the core transaction information first, then prepare the memo section below.
+                                            <h3 class="text-base font-semibold">
+                                                Request Details
+                                            </h3>
+                                            <p
+                                                class="text-sm text-muted-foreground"
+                                            >
+                                                Complete the transaction details
+                                                first.
                                             </p>
                                         </div>
 
@@ -396,11 +382,14 @@ const submitDeleteRequest = () => {
                                             <Label for="transaction-department"
                                                 >Department</Label
                                             >
-                                            <Select v-model="form.department_id">
+                                            <Select
+                                                v-model="form.department_id"
+                                            >
                                                 <SelectTrigger
                                                     id="transaction-department"
+                                                    class="w-full"
                                                     ><SelectValue
-                                                        placeholder="Select department"
+                                                        placeholder="Select a department"
                                                 /></SelectTrigger>
                                                 <SelectContent>
                                                     <SelectItem
@@ -413,13 +402,15 @@ const submitDeleteRequest = () => {
                                                 </SelectContent>
                                             </Select>
                                             <InputError
-                                                :message="form.errors.department_id"
+                                                :message="
+                                                    form.errors.department_id
+                                                "
                                             />
                                         </div>
 
                                         <div
                                             v-else
-                                            class="rounded-lg border bg-background px-4 py-3 text-sm text-muted-foreground"
+                                            class="rounded-lg border bg-background px-3 py-2.5 text-sm text-muted-foreground"
                                         >
                                             <span
                                                 class="font-medium text-foreground"
@@ -428,7 +419,9 @@ const submitDeleteRequest = () => {
                                             {{ departmentLabel }}
                                         </div>
 
-                                        <div class="grid gap-4 sm:grid-cols-2">
+                                        <div
+                                            class="grid gap-4 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
+                                        >
                                             <div class="grid gap-2">
                                                 <Label for="transaction-type"
                                                     >Type</Label
@@ -436,6 +429,7 @@ const submitDeleteRequest = () => {
                                                 <Select v-model="form.type">
                                                     <SelectTrigger
                                                         id="transaction-type"
+                                                        class="w-full"
                                                         ><SelectValue
                                                             placeholder="Select type"
                                                     /></SelectTrigger>
@@ -455,12 +449,16 @@ const submitDeleteRequest = () => {
                                             </div>
 
                                             <div class="grid gap-2">
-                                                <Label for="transaction-category"
+                                                <Label
+                                                    for="transaction-category"
                                                     >Category</Label
                                                 >
-                                                <Select v-model="form.category_id">
+                                                <Select
+                                                    v-model="form.category_id"
+                                                >
                                                     <SelectTrigger
                                                         id="transaction-category"
+                                                        class="w-full"
                                                         ><SelectValue
                                                             placeholder="Select category"
                                                     /></SelectTrigger>
@@ -477,6 +475,25 @@ const submitDeleteRequest = () => {
                                                 <InputError
                                                     :message="
                                                         form.errors.category_id
+                                                    "
+                                                />
+                                            </div>
+
+                                            <div class="grid gap-2">
+                                                <Label for="transaction-date"
+                                                    >Date</Label
+                                                >
+                                                <Input
+                                                    id="transaction-date"
+                                                    v-model="
+                                                        form.transaction_date
+                                                    "
+                                                    type="date"
+                                                />
+                                                <InputError
+                                                    :message="
+                                                        form.errors
+                                                            .transaction_date
                                                     "
                                                 />
                                             </div>
@@ -509,39 +526,28 @@ const submitDeleteRequest = () => {
                                                     step="0.01"
                                                 />
                                                 <InputError
-                                                    :message="form.errors.amount"
+                                                    :message="
+                                                        form.errors.amount
+                                                    "
                                                 />
                                             </div>
 
                                             <div class="grid gap-2">
-                                                <Label for="transaction-date"
-                                                    >Date</Label
+                                                <Label
+                                                    for="transaction-description"
+                                                    >Description</Label
                                                 >
                                                 <Input
-                                                    id="transaction-date"
-                                                    v-model="form.transaction_date"
-                                                    type="date"
+                                                    id="transaction-description"
+                                                    v-model="form.description"
+                                                    type="text"
                                                 />
                                                 <InputError
                                                     :message="
-                                                        form.errors.transaction_date
+                                                        form.errors.description
                                                     "
                                                 />
                                             </div>
-                                        </div>
-
-                                        <div class="grid gap-2">
-                                            <Label for="transaction-description"
-                                                >Description</Label
-                                            >
-                                            <Input
-                                                id="transaction-description"
-                                                v-model="form.description"
-                                                type="text"
-                                            />
-                                            <InputError
-                                                :message="form.errors.description"
-                                            />
                                         </div>
 
                                         <div class="grid gap-2">
@@ -551,7 +557,7 @@ const submitDeleteRequest = () => {
                                             <textarea
                                                 id="transaction-remarks"
                                                 v-model="form.remarks"
-                                                class="min-h-28 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                class="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             />
                                             <InputError
                                                 :message="form.errors.remarks"
@@ -559,127 +565,57 @@ const submitDeleteRequest = () => {
                                         </div>
                                     </div>
 
-                                    <div class="space-y-4 rounded-xl border p-5">
+                                    <div
+                                        class="space-y-4 rounded-2xl border border-border/80 bg-muted/10 p-4"
+                                    >
                                         <div class="space-y-1">
-                                            <div class="space-y-1">
-                                                <h3 class="text-base font-semibold">Approval Memo</h3>
-                                                <p
-                                                    class="text-sm text-muted-foreground"
-                                                >
-                                                    Upload the final approval memo PDF here before submitting the transaction request.
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <Separator />
-                                        <div class="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
-                                            Upload the final approval memo PDF for this transaction request. A separate memo selection is no longer needed here.
-                                        </div>
-                                        <div class="grid gap-2">
-                                            <div
-                                                class="flex items-center justify-between gap-3"
+                                            <h3 class="text-base font-semibold">
+                                                Approval Action
+                                            </h3>
+                                            <p
+                                                class="text-sm text-muted-foreground"
                                             >
-                                                <Label
-                                                    for="transaction-approval-memo-pdf"
-                                                >
-                                                    Approval memo PDF
-                                                </Label>
-                                                <span
-                                                    class="text-xs text-muted-foreground"
-                                                >
-                                                    PDF only
-                                                </span>
-                                            </div>
-                                            <input
-                                                id="transaction-approval-memo-pdf"
-                                                ref="approvalMemoPdfInput"
-                                                type="file"
-                                                class="block w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium"
-                                                :accept="PDF_ONLY_ACCEPT"
-                                                @change="handleApprovalMemoPdfChange"
-                                            />
-                                            <p class="text-xs text-muted-foreground">
-                                                Open the selected memo print page, save it as PDF, then upload that file here before submission.
+                                                Save a draft to continue later
+                                                or submit this request for
+                                                review.
                                             </p>
-                                            <InputError
-                                                :message="
-                                                    approvalMemoPdfError
-                                                "
-                                            />
-                                            <div
-                                                v-if="form.approval_memo_pdf"
-                                                class="flex items-start justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
-                                            >
-                                                <div
-                                                    class="flex items-start gap-2"
-                                                >
-                                                    <FileUp
-                                                        class="mt-0.5 size-4 text-muted-foreground"
-                                                    />
-                                                    <div>
-                                                        <div
-                                                            class="text-sm font-medium"
-                                                        >
-                                                            {{
-                                                                form
-                                                                    .approval_memo_pdf
-                                                                    .name
-                                                            }}
-                                                        </div>
-                                                        <div
-                                                            class="text-xs text-muted-foreground"
-                                                        >
-                                                            {{
-                                                                formatFileSize(
-                                                                    form
-                                                                        .approval_memo_pdf
-                                                                        .size,
-                                                                )
-                                                            }}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    @click="
-                                                        clearApprovalMemoPdf()
-                                                    "
-                                                >
-                                                    <X class="size-4" />
-                                                </Button>
-                                            </div>
                                         </div>
-                                    </div>
 
-                                    <DialogFooter class="gap-2 sm:justify-end">
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            @click="isDialogOpen = false"
-                                            >Cancel</Button
+                                        <DialogFooter
+                                            class="gap-3 sm:justify-end"
                                         >
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            :disabled="form.processing"
-                                            @click="submit(false)"
-                                        >
-                                            <Spinner v-if="form.processing" />
-                                            Save draft
-                                        </Button>
-                                        <Button
-                                            type="button"
-                                            :disabled="
-                                                form.processing ||
-                                                !form.approval_memo_pdf
-                                            "
-                                            @click="submit(true)"
-                                        >
-                                            <Spinner v-if="form.processing" />
-                                            Submit request
-                                        </Button>
-                                    </DialogFooter>
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                @click="
+                                                    isDialogOpen = false;
+                                                    resetForm();
+                                                "
+                                                >Cancel</Button
+                                            >
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                :disabled="form.processing"
+                                                @click="submit(false)"
+                                            >
+                                                <Spinner
+                                                    v-if="form.processing"
+                                                />
+                                                Save draft
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                :disabled="form.processing"
+                                                @click="submit(true)"
+                                            >
+                                                <Spinner
+                                                    v-if="form.processing"
+                                                />
+                                                Submit request
+                                            </Button>
+                                        </DialogFooter>
+                                    </div>
                                 </form>
                             </DialogContent>
                         </Dialog>
@@ -875,13 +811,10 @@ const submitDeleteRequest = () => {
             >
                 <DialogContent class="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle>
-                            Create delete request
-                        </DialogTitle>
+                        <DialogTitle> Create delete request </DialogTitle>
                         <DialogDescription>
-                            Add a short explanation for why this
-                            transaction should be voided, then send
-                            it for approval.
+                            Add a short explanation for why this transaction
+                            should be voided, then send it for approval.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -898,21 +831,20 @@ const submitDeleteRequest = () => {
                             </div>
                             <div class="mt-1 text-muted-foreground">
                                 {{
-                                    deletingTransaction.category
-                                        ?.name ?? 'Uncategorized'
+                                    deletingTransaction.category?.name ??
+                                    'Uncategorized'
                                 }}
                                 -
                                 {{
-                                    deletingTransaction.transaction_date ??
-                                    '-'
+                                    deletingTransaction.transaction_date ?? '-'
                                 }}
                             </div>
                             <div class="mt-2 text-muted-foreground">
                                 Amount:
                                 {{
-                                    Number(
-                                        deletingTransaction.amount,
-                                    ).toFixed(2)
+                                    Number(deletingTransaction.amount).toFixed(
+                                        2,
+                                    )
                                 }}
                             </div>
                         </div>
@@ -926,9 +858,7 @@ const submitDeleteRequest = () => {
                                 v-model="deleteForm.remarks"
                                 class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
                             />
-                            <InputError
-                                :message="deleteForm.errors.remarks"
-                            />
+                            <InputError :message="deleteForm.errors.remarks" />
                         </div>
 
                         <DialogFooter class="gap-2 sm:justify-end">
@@ -944,9 +874,7 @@ const submitDeleteRequest = () => {
                                 variant="destructive"
                                 :disabled="deleteForm.processing"
                             >
-                                <Spinner
-                                    v-if="deleteForm.processing"
-                                />
+                                <Spinner v-if="deleteForm.processing" />
                                 Create delete request
                             </Button>
                         </DialogFooter>
@@ -1054,7 +982,11 @@ const submitDeleteRequest = () => {
                                             <Button
                                                 variant="outline"
                                                 size="sm"
-                                                @click="openDeleteDialog(transaction)"
+                                                @click="
+                                                    openDeleteDialog(
+                                                        transaction,
+                                                    )
+                                                "
                                             >
                                                 <Trash2 class="mr-2 size-4" />
                                                 Request delete

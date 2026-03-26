@@ -32,12 +32,8 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { formatFileSize, PDF_ONLY_ACCEPT, SUPPORTING_DOCUMENT_ACCEPT } from '@/lib/utils';
+import { formatFileSize, SUPPORTING_DOCUMENT_ACCEPT } from '@/lib/utils';
 import { dashboard } from '@/routes';
-import {
-    index as approvalMemoIndex,
-    show as approvalMemoShow,
-} from '@/routes/approval-memos';
 import {
     approve as approveVoucher,
     index as approvalVoucherIndex,
@@ -48,7 +44,6 @@ import {
 } from '@/routes/approval-vouchers';
 import type {
     ActivityLogItem,
-    ApprovalMemoOption,
     ApprovalVoucher,
     ApprovalVoucherPayload,
     BreadcrumbItem,
@@ -65,7 +60,6 @@ const props = defineProps<{
     categories: Category[];
     departments: DepartmentOption[];
     transaction_types: TransactionTypeOption[];
-    available_approval_memos: ApprovalMemoOption[];
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
@@ -84,13 +78,7 @@ const isTransaction = computed(
 );
 const isDelete = computed(() => props.approval_voucher.action === 'delete');
 const canEdit = computed(() => props.approval_voucher.permissions.can_edit);
-const currentVoucherAction = computed(() =>
-    props.approval_voucher.action === 'delete'
-        ? 'delete'
-        : props.approval_voucher.action,
-);
 const attachmentInput = ref<HTMLInputElement | null>(null);
-const approvalMemoPdfInput = ref<HTMLInputElement | null>(null);
 
 const form = useForm({
     module: props.approval_voucher.module,
@@ -125,9 +113,6 @@ const form = useForm({
         payload.value && 'amount_limit' in payload.value
             ? String(payload.value.amount_limit)
             : '',
-    approval_memo_id: props.approval_voucher.approval_memo_id,
-    approval_memo_pdf: null as File | null,
-    remove_approval_memo_pdf: false,
     remarks: props.approval_voucher.remarks ?? '',
     attachments: [] as File[],
     remove_attachment_ids: [] as number[],
@@ -149,33 +134,6 @@ const attachmentPreviewCount = computed(
         props.approval_voucher.attachments.filter(
             (attachment) => !markedForRemoval.value.has(attachment.id),
         ).length + form.attachments.length,
-);
-const eligibleApprovalMemos = computed(() =>
-    props.available_approval_memos.filter(
-        (approvalMemo) =>
-            approvalMemo.module === props.approval_voucher.module &&
-            approvalMemo.action === currentVoucherAction.value &&
-            approvalMemo.department_id === form.department_id,
-    ),
-);
-const draftSelectedApprovalMemo = computed(
-    () =>
-        eligibleApprovalMemos.value.find(
-            (approvalMemo) => approvalMemo.id === form.approval_memo_id,
-        ) ??
-        (props.approval_voucher.approval_memo &&
-        props.approval_voucher.approval_memo.id === form.approval_memo_id
-            ? props.approval_voucher.approval_memo
-            : null),
-);
-const approvalMemoPdfError = computed(
-    () => form.errors.approval_memo_pdf ?? undefined,
-);
-const savedVoucherReadyForSubmit = computed(
-    () =>
-        isDelete.value ||
-        (props.approval_voucher.approval_memo_id !== null &&
-            props.approval_voucher.approval_memo_pdf_attachment !== null),
 );
 
 const formCategories = computed(() =>
@@ -205,34 +163,6 @@ watch(
     },
 );
 
-watch(
-    () => form.department_id,
-    () => {
-        if (
-            eligibleApprovalMemos.value.some(
-                (approvalMemo) => approvalMemo.id === form.approval_memo_id,
-            )
-        ) {
-            return;
-        }
-
-        if (form.approval_memo_id !== null) {
-            form.approval_memo_pdf = null;
-            clearFileInput(approvalMemoPdfInput.value);
-        }
-
-        form.approval_memo_id =
-            props.approval_voucher.approval_memo_id &&
-            eligibleApprovalMemos.value.some(
-                (approvalMemo) =>
-                    approvalMemo.id === props.approval_voucher.approval_memo_id,
-            )
-                ? props.approval_voucher.approval_memo_id
-                : null;
-    },
-    { immediate: true },
-);
-
 const clearFileInput = (input: HTMLInputElement | null) => {
     if (input !== null) {
         input.value = '';
@@ -241,7 +171,9 @@ const clearFileInput = (input: HTMLInputElement | null) => {
 
 const findAttachmentError = (errors: Record<string, string>) =>
     errors.attachments ??
-    Object.entries(errors).find(([key]) => key.startsWith('attachments.'))?.[1] ??
+    Object.entries(errors).find(([key]) =>
+        key.startsWith('attachments.'),
+    )?.[1] ??
     null;
 
 const handleAttachmentChange = (event: Event) => {
@@ -253,23 +185,6 @@ const handleAttachmentChange = (event: Event) => {
     ].slice(0, 5);
 
     clearFileInput(target);
-};
-
-const handleApprovalMemoPdfChange = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-
-    form.approval_memo_pdf = target.files?.[0] ?? null;
-    form.remove_approval_memo_pdf = false;
-    clearFileInput(target);
-};
-
-const clearPendingApprovalMemoPdf = () => {
-    form.approval_memo_pdf = null;
-    clearFileInput(approvalMemoPdfInput.value);
-};
-
-const toggleSavedApprovalMemoPdfRemoval = () => {
-    form.remove_approval_memo_pdf = !form.remove_approval_memo_pdf;
 };
 
 const removePendingAttachment = (index: number) => {
@@ -352,13 +267,15 @@ const fieldLabel = (key: string) =>
     })[key] ?? key;
 
 const saveDraft = () =>
-    form.transform((data) => ({
-        ...data,
-        _method: 'put',
-    })).post(updateVoucher(props.approval_voucher.id).url, {
-        preserveScroll: true,
-        forceFormData: true,
-    });
+    form
+        .transform((data) => ({
+            ...data,
+            _method: 'put',
+        }))
+        .post(updateVoucher(props.approval_voucher.id).url, {
+            preserveScroll: true,
+            forceFormData: true,
+        });
 const submitRequest = () =>
     router.post(
         submitVoucher(props.approval_voucher.id).url,
@@ -587,94 +504,6 @@ const eventVariant = (event: string) => {
                                 }}
                             </p>
                         </div>
-                        <div class="rounded-lg border p-4 lg:col-span-2">
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                <div>
-                                    <div class="text-sm font-medium">
-                                        Linked approval memo
-                                    </div>
-                                    <p class="mt-2 text-sm text-muted-foreground">
-                                        {{
-                                            approval_voucher.approval_memo
-                                                ? `${approval_voucher.approval_memo.memo_no} · ${approval_voucher.approval_memo.status_label}`
-                                                : isDelete
-                                                  ? 'Delete requests do not require approval memos.'
-                                                  : 'No approval memo linked yet.'
-                                        }}
-                                    </p>
-                                    <p
-                                        v-if="approval_voucher.approval_memo?.remarks"
-                                        class="mt-1 text-xs text-muted-foreground"
-                                    >
-                                        {{
-                                            approval_voucher.approval_memo
-                                                .remarks
-                                        }}
-                                    </p>
-                                </div>
-                                <div class="flex flex-wrap gap-2">
-                                    <Button
-                                        v-if="approval_voucher.approval_memo"
-                                        as-child
-                                        variant="outline"
-                                        size="sm"
-                                    >
-                                        <Link
-                                            :href="
-                                                approvalMemoShow(
-                                                    approval_voucher
-                                                        .approval_memo.id,
-                                                )
-                                            "
-                                        >
-                                            Open memo
-                                        </Link>
-                                    </Button>
-                                    <Button
-                                        v-if="
-                                            approval_voucher.approval_memo
-                                                ?.print_url
-                                        "
-                                        as-child
-                                        variant="outline"
-                                        size="sm"
-                                    >
-                                        <a
-                                            :href="
-                                                approval_voucher.approval_memo
-                                                    .print_url ?? '#'
-                                            "
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                        >
-                                            <Printer class="mr-2 size-4" />
-                                            Print memo source
-                                        </a>
-                                    </Button>
-                                    <Button
-                                        v-if="
-                                            approval_voucher.approval_memo_pdf_attachment
-                                        "
-                                        as-child
-                                        variant="outline"
-                                        size="sm"
-                                    >
-                                        <a
-                                            :href="
-                                                approval_voucher
-                                                    .approval_memo_pdf_attachment
-                                                    .download_url
-                                            "
-                                            target="_blank"
-                                            rel="noopener noreferrer"
-                                        >
-                                            <Download class="mr-2 size-4" />
-                                            Download uploaded PDF
-                                        </a>
-                                    </Button>
-                                </div>
-                            </div>
-                        </div>
                     </CardContent>
                 </Card>
 
@@ -874,235 +703,6 @@ const eventVariant = (event: string) => {
                                         />
                                     </div>
                                 </template>
-                                <div
-                                    v-if="!isDelete"
-                                    class="grid gap-4 rounded-lg border p-4"
-                                >
-                                    <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                        <div class="space-y-1">
-                                            <Label>Approval memo source</Label>
-                                            <p class="text-xs text-muted-foreground">
-                                                Save your draft without a memo, then select an approved memo source and upload its PDF before final submission.
-                                            </p>
-                                        </div>
-                                        <Button
-                                            as-child
-                                            type="button"
-                                            variant="outline"
-                                            size="sm"
-                                        >
-                                            <Link :href="approvalMemoIndex()">
-                                                Request memo
-                                            </Link>
-                                        </Button>
-                                    </div>
-                                    <Select v-model="form.approval_memo_id">
-                                        <SelectTrigger>
-                                            <SelectValue
-                                                placeholder="Select approved memo"
-                                            />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            <SelectItem
-                                                v-for="approvalMemo in eligibleApprovalMemos"
-                                                :key="approvalMemo.id"
-                                                :value="approvalMemo.id"
-                                            >
-                                                {{ approvalMemo.memo_no }} -
-                                                {{
-                                                    approvalMemo.department_name ??
-                                                    approvalMemo.module_label
-                                                }}
-                                            </SelectItem>
-                                        </SelectContent>
-                                    </Select>
-                                    <div
-                                        v-if="draftSelectedApprovalMemo"
-                                        class="rounded-md border bg-muted/20 p-3 text-sm"
-                                    >
-                                        <div class="font-medium">
-                                            {{ draftSelectedApprovalMemo.memo_no }}
-                                        </div>
-                                        <div class="mt-1 text-xs text-muted-foreground">
-                                            {{ draftSelectedApprovalMemo.module_label }} -
-                                            {{ draftSelectedApprovalMemo.action_label }}
-                                        </div>
-                                        <div class="mt-1 text-xs text-muted-foreground">
-                                            Approved:
-                                            {{ draftSelectedApprovalMemo.approved_at ?? '-' }}
-                                        </div>
-                                        <div class="mt-3 flex flex-wrap gap-2">
-                                            <Button
-                                                as-child
-                                                variant="outline"
-                                                size="sm"
-                                            >
-                                                <Link
-                                                    :href="
-                                                        approvalMemoShow(
-                                                            draftSelectedApprovalMemo.id,
-                                                        )
-                                                    "
-                                                >
-                                                    Open memo
-                                                </Link>
-                                            </Button>
-                                            <Button
-                                                v-if="
-                                                    draftSelectedApprovalMemo.download_url
-                                                "
-                                                as-child
-                                                variant="outline"
-                                                size="sm"
-                                            >
-                                                <a
-                                                    :href="
-                                                        draftSelectedApprovalMemo.download_url ??
-                                                        '#'
-                                                    "
-                                                >
-                                                    <Download class="mr-2 size-4" />
-                                                    Download PDF
-                                                </a>
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <p
-                                        v-if="eligibleApprovalMemos.length === 0"
-                                        class="text-xs text-muted-foreground"
-                                    >
-                                        No approved
-                                        {{ approval_voucher.module }}
-                                        {{ approval_voucher.action }} memos are
-                                        available for this department yet.
-                                    </p>
-                                    <InputError
-                                        :message="form.errors.approval_memo_id"
-                                    />
-
-                                    <div class="grid gap-2">
-                                        <div class="flex items-center justify-between gap-3">
-                                            <Label>Approval memo PDF</Label>
-                                            <span class="text-xs text-muted-foreground">
-                                                PDF only
-                                            </span>
-                                        </div>
-                                        <input
-                                            ref="approvalMemoPdfInput"
-                                            type="file"
-                                            class="block w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium"
-                                            :accept="PDF_ONLY_ACCEPT"
-                                            @change="handleApprovalMemoPdfChange"
-                                        />
-                                        <p class="text-xs text-muted-foreground">
-                                            Upload the PDF you saved from the memo print page. Saving this draft with a different memo source will require a matching memo PDF for resubmission.
-                                        </p>
-                                        <InputError :message="approvalMemoPdfError" />
-                                        <div
-                                            v-if="approval_voucher.approval_memo_pdf_attachment"
-                                            class="rounded-lg border px-4 py-3"
-                                            :class="
-                                                form.remove_approval_memo_pdf
-                                                    ? 'border-destructive/40 bg-destructive/5'
-                                                    : ''
-                                            "
-                                        >
-                                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                                                <div class="flex items-start gap-3">
-                                                    <FileUp class="mt-0.5 size-4 text-muted-foreground" />
-                                                    <div>
-                                                        <div class="text-sm font-medium">
-                                                            {{
-                                                                approval_voucher
-                                                                    .approval_memo_pdf_attachment
-                                                                    .name
-                                                            }}
-                                                        </div>
-                                                        <div class="text-xs text-muted-foreground">
-                                                            {{
-                                                                formatFileSize(
-                                                                    approval_voucher
-                                                                        .approval_memo_pdf_attachment
-                                                                        .size_bytes,
-                                                                )
-                                                            }}
-                                                            -
-                                                            {{
-                                                                approval_voucher
-                                                                    .approval_memo_pdf_attachment
-                                                                    .uploaded_at
-                                                                    ? formatDateTime(
-                                                                          approval_voucher
-                                                                              .approval_memo_pdf_attachment
-                                                                              .uploaded_at,
-                                                                      )
-                                                                    : '-'
-                                                            }}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div class="flex flex-wrap gap-2">
-                                                    <Button as-child variant="outline" size="sm">
-                                                        <a
-                                                            :href="
-                                                                approval_voucher
-                                                                    .approval_memo_pdf_attachment
-                                                                    .download_url
-                                                            "
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                        >
-                                                            <Download class="mr-2 size-4" />
-                                                            Download
-                                                        </a>
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        :variant="
-                                                            form.remove_approval_memo_pdf
-                                                                ? 'secondary'
-                                                                : 'ghost'
-                                                        "
-                                                        size="sm"
-                                                        @click="
-                                                            toggleSavedApprovalMemoPdfRemoval()
-                                                        "
-                                                    >
-                                                        {{
-                                                            form.remove_approval_memo_pdf
-                                                                ? 'Undo remove'
-                                                                : 'Remove on save'
-                                                        }}
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div
-                                            v-if="form.approval_memo_pdf"
-                                            class="flex items-start justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
-                                        >
-                                            <div class="flex items-start gap-2">
-                                                <FileUp class="mt-0.5 size-4 text-muted-foreground" />
-                                                <div>
-                                                    <div class="text-sm font-medium">
-                                                        {{ form.approval_memo_pdf.name }}
-                                                    </div>
-                                                    <div class="text-xs text-muted-foreground">
-                                                        {{ formatFileSize(form.approval_memo_pdf.size) }} - Pending upload
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <Button
-                                                type="button"
-                                                variant="ghost"
-                                                size="sm"
-                                                @click="clearPendingApprovalMemoPdf"
-                                            >
-                                                <X class="size-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
                                 <div class="grid gap-2">
                                     <Label>Remarks</Label>
                                     <textarea
@@ -1127,10 +727,7 @@ const eventVariant = (event: string) => {
                                         "
                                         type="button"
                                         variant="outline"
-                                        :disabled="
-                                            form.processing ||
-                                            !savedVoucherReadyForSubmit
-                                        "
+                                        :disabled="form.processing"
                                         @click="submitRequest"
                                         ><Send
                                             class="mr-2 size-4"
@@ -1200,96 +797,6 @@ const eventVariant = (event: string) => {
                     </Card>
                 </div>
             </div>
-
-            <Card
-                v-if="!isDelete"
-                class="border-sidebar-border/70 shadow-sm"
-            >
-                <CardHeader>
-                    <CardTitle>Approval Memo PDF</CardTitle>
-                    <CardDescription>
-                        The uploaded PDF saved from the approved memo print
-                        page. This is reviewed separately from the regular
-                        supporting documents.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <div
-                        v-if="approval_voucher.approval_memo_pdf_attachment"
-                        class="rounded-lg border px-4 py-3"
-                        :class="
-                            canEdit && form.remove_approval_memo_pdf
-                                ? 'border-destructive/40 bg-destructive/5'
-                                : ''
-                        "
-                    >
-                        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div class="flex items-start gap-3">
-                                <FileUp class="mt-0.5 size-4 text-muted-foreground" />
-                                <div>
-                                    <div class="text-sm font-medium">
-                                        {{
-                                            approval_voucher
-                                                .approval_memo_pdf_attachment
-                                                .name
-                                        }}
-                                    </div>
-                                    <div class="text-xs text-muted-foreground">
-                                        {{
-                                            formatFileSize(
-                                                approval_voucher
-                                                    .approval_memo_pdf_attachment
-                                                    .size_bytes,
-                                            )
-                                        }}
-                                        -
-                                        {{
-                                            approval_voucher
-                                                .approval_memo_pdf_attachment
-                                                .mime_type
-                                        }}
-                                        -
-                                        {{
-                                            formatDateTime(
-                                                approval_voucher
-                                                    .approval_memo_pdf_attachment
-                                                    .uploaded_at,
-                                            )
-                                        }}
-                                    </div>
-                                </div>
-                            </div>
-                            <Button as-child variant="outline" size="sm">
-                                <a
-                                    :href="
-                                        approval_voucher
-                                            .approval_memo_pdf_attachment
-                                            .download_url
-                                    "
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                >
-                                    <Download class="mr-2 size-4" />
-                                    Download
-                                </a>
-                            </Button>
-                        </div>
-                        <p
-                            v-if="canEdit && form.remove_approval_memo_pdf"
-                            class="mt-3 text-xs text-destructive"
-                        >
-                            This memo PDF will be removed the next time you save
-                            the draft.
-                        </p>
-                    </div>
-                    <div
-                        v-else
-                        class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
-                    >
-                        No approval memo PDF uploaded to this voucher yet.
-                    </div>
-                </CardContent>
-            </Card>
 
             <Card class="border-sidebar-border/70 shadow-sm">
                 <CardHeader
@@ -1376,16 +883,28 @@ const eventVariant = (event: string) => {
                                         <div
                                             class="text-xs text-muted-foreground"
                                         >
-                                            {{ formatFileSize(attachment.size_bytes) }}
+                                            {{
+                                                formatFileSize(
+                                                    attachment.size_bytes,
+                                                )
+                                            }}
                                             Â-
                                             {{ attachment.mime_type }}
                                             Â-
-                                            {{ formatDateTime(attachment.uploaded_at) }}
+                                            {{
+                                                formatDateTime(
+                                                    attachment.uploaded_at,
+                                                )
+                                            }}
                                         </div>
                                     </div>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
-                                    <Button as-child variant="outline" size="sm">
+                                    <Button
+                                        as-child
+                                        variant="outline"
+                                        size="sm"
+                                    >
                                         <a
                                             :href="attachment.download_url"
                                             target="_blank"
@@ -1446,7 +965,9 @@ const eventVariant = (event: string) => {
                                         <div
                                             class="text-xs text-muted-foreground"
                                         >
-                                            {{ formatFileSize(attachment.size) }}
+                                            {{
+                                                formatFileSize(attachment.size)
+                                            }}
                                             Â- Pending upload
                                         </div>
                                     </div>

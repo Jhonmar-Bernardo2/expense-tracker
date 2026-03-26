@@ -1,7 +1,5 @@
 <?php
 
-use App\Http\Controllers\ApprovalMemoAttachmentController;
-use App\Http\Controllers\ApprovalMemoController;
 use App\Http\Controllers\ApprovalVoucherController;
 use App\Http\Controllers\ApprovalVoucherAttachmentController;
 use App\Http\Controllers\Auth\AuthViewController;
@@ -65,16 +63,6 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         ->parameters(['approval-vouchers' => 'approvalVoucher'])
         ->only(['index', 'show', 'store', 'update']);
 
-    Route::resource('approval-memos', ApprovalMemoController::class)
-        ->parameters(['approval-memos' => 'approvalMemo'])
-        ->only(['index', 'show', 'store', 'update', 'destroy']);
-
-    Route::get('approval-memos/{approvalMemo}/print', [ApprovalMemoController::class, 'print'])
-        ->name('approval-memos.print');
-
-    Route::get('approval-memos/{approvalMemo}/download', [ApprovalMemoController::class, 'download'])
-        ->name('approval-memos.download');
-
     Route::get('approval-vouchers/{approvalVoucher}/print', [ApprovalVoucherController::class, 'print'])
         ->name('approval-vouchers.print');
 
@@ -83,27 +71,13 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         [ApprovalVoucherAttachmentController::class, 'download'],
     )->name('approval-vouchers.attachments.download');
 
-    Route::get(
-        'approval-memos/{approvalMemo}/attachments/{attachment}/download',
-        [ApprovalMemoAttachmentController::class, 'download'],
-    )->name('approval-memos.attachments.download');
-
     Route::post('approval-vouchers/{approvalVoucher}/submit', [ApprovalVoucherController::class, 'submit'])
         ->name('approval-vouchers.submit');
-
-    Route::post('approval-memos/{approvalMemo}/submit', [ApprovalMemoController::class, 'submit'])
-        ->name('approval-memos.submit');
 
     Route::get('reports', [ReportsController::class, 'index'])
         ->name('reports.index');
 
     Route::middleware('admin')->group(function () {
-        Route::patch('approval-memos/{approvalMemo}/approve', [ApprovalMemoController::class, 'approve'])
-            ->name('approval-memos.approve');
-
-        Route::patch('approval-memos/{approvalMemo}/reject', [ApprovalMemoController::class, 'reject'])
-            ->name('approval-memos.reject');
-
         Route::patch('approval-vouchers/{approvalVoucher}/approve', [ApprovalVoucherController::class, 'approve'])
             ->name('approval-vouchers.approve');
 
