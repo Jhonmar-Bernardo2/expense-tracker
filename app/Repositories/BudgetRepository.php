@@ -52,6 +52,17 @@ class BudgetRepository
             ->findOrFail($budgetId);
     }
 
+    public function findActiveById(?int $budgetId): ?Budget
+    {
+        if ($budgetId === null) {
+            return null;
+        }
+
+        return Budget::query()
+            ->active()
+            ->find($budgetId);
+    }
+
     /**
      * @param  array{category_id: int, month: int, year: int, amount_limit: mixed}  $data
      */
@@ -102,6 +113,73 @@ class BudgetRepository
         ]);
 
         return $budget->refresh();
+    }
+
+    /**
+     * @return Collection<int, object{category_id: int, month: int, year: int}>
+     */
+    public function getActiveMergeGroups(): Collection
+    {
+        return Budget::query()
+            ->active()
+            ->select(['category_id', 'month', 'year'])
+            ->groupBy('category_id', 'month', 'year')
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, Budget>
+     */
+    public function getActiveMergeCandidates(
+        int $departmentId,
+        int $categoryId,
+        int $month,
+        int $year,
+    ): Collection {
+        return Budget::query()
+            ->active()
+            ->where('category_id', $categoryId)
+            ->where('month', $month)
+            ->where('year', $year)
+            ->orderByRaw(
+                sprintf(
+                    'CASE WHEN department_id = %d THEN 0 ELSE 1 END',
+                    $departmentId,
+                )
+            )
+            ->orderBy('id')
+            ->get();
+    }
+
+    public function reassignBudgetToDepartment(
+        Budget $budget,
+        int $departmentId,
+        float $amountLimit,
+    ): Budget {
+        $budget->update([
+            'department_id' => $departmentId,
+            'amount_limit' => $amountLimit,
+        ]);
+
+        return $budget->refresh();
+    }
+
+    /**
+     * @param  list<int>  $budgetIds
+     */
+    public function archiveByIds(array $budgetIds, mixed $archivedAt): void
+    {
+        if ($budgetIds === []) {
+            return;
+        }
+
+        Budget::query()
+            ->whereKey($budgetIds)
+            ->update([
+                'archived_at' => $archivedAt,
+                'archived_by_approval_voucher_id' => null,
+                'updated_at' => $archivedAt,
+            ]);
     }
 
     /**

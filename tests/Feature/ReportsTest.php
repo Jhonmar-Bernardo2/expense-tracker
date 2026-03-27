@@ -18,7 +18,7 @@ class ReportsTest extends TestCase
 
     public function test_guests_are_redirected_to_the_login_page(): void
     {
-        $this->get(route('reports.index'))->assertRedirect(route('login'));
+        $this->get(route('app.reports.index'))->assertRedirect(route('login'));
     }
 
     public function test_staff_report_scope_is_locked_to_their_department_and_hides_budget_sections(): void
@@ -65,10 +65,10 @@ class ReportsTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('reports.index', ['month' => 3, 'year' => 2026, 'department' => $otherDepartment->id]))
+            ->get(route('app.reports.index', ['month' => 3, 'year' => 2026, 'department' => $otherDepartment->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Reports/Index')
+                ->component('app/Reports/Index')
                 ->where('filters.department', $department->id)
                 ->where('department_scope.department_id', $department->id)
                 ->where('summary.monthly.expenses', 325)
@@ -123,7 +123,7 @@ class ReportsTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('reports.index', ['month' => 3, 'year' => 2026, 'department' => $departmentB->id]))
+            ->get(route('app.reports.index', ['month' => 3, 'year' => 2026, 'department' => $departmentB->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('filters.department', $departmentB->id)
@@ -185,7 +185,7 @@ class ReportsTest extends TestCase
         ]);
 
         $this->actingAs($financialUser)
-            ->get(route('reports.index', ['month' => 3, 'year' => 2026]))
+            ->get(route('app.reports.index', ['month' => 3, 'year' => 2026]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('filters.department', $financialManagementDepartment->id)

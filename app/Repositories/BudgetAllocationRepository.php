@@ -50,6 +50,17 @@ class BudgetAllocationRepository
             ->findOrFail($allocationId);
     }
 
+    public function findActiveById(?int $allocationId): ?BudgetAllocation
+    {
+        if ($allocationId === null) {
+            return null;
+        }
+
+        return BudgetAllocation::query()
+            ->active()
+            ->find($allocationId);
+    }
+
     /**
      * @param  array{month: int, year: int, amount_limit: mixed}  $data
      */

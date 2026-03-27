@@ -6,6 +6,7 @@ use App\Enums\ApprovalVoucherAttachmentKind;
 use App\Models\ApprovalVoucher;
 use App\Models\ApprovalVoucherAttachment;
 use App\Models\User;
+use App\Repositories\ApprovalVoucherAttachmentRepository;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +16,10 @@ use Illuminate\Validation\ValidationException;
 class ApprovalVoucherAttachmentService
 {
     private const DISK = 'local';
+
+    public function __construct(
+        private readonly ApprovalVoucherAttachmentRepository $approvalVoucherAttachmentRepository,
+    ) {}
 
     /**
      * @param  array<string, mixed>  $data
@@ -60,10 +65,10 @@ class ApprovalVoucherAttachmentService
      */
     private function removeExistingSupportingAttachments(ApprovalVoucher $approvalVoucher, array $attachmentIds): void
     {
-        $attachments = $approvalVoucher->attachments()
-            ->where('kind', ApprovalVoucherAttachmentKind::SupportingDocument->value)
-            ->whereKey($attachmentIds)
-            ->get();
+        $attachments = $this->approvalVoucherAttachmentRepository->getSupportingDocumentsForVoucher(
+            $approvalVoucher,
+            $attachmentIds,
+        );
 
         if ($attachments->count() !== count($attachmentIds)) {
             throw ValidationException::withMessages([
@@ -78,9 +83,7 @@ class ApprovalVoucherAttachmentService
             ])
             ->all();
 
-        ApprovalVoucherAttachment::query()
-            ->whereKey($attachments->modelKeys())
-            ->delete();
+        $this->approvalVoucherAttachmentRepository->deleteByIds($attachments->modelKeys());
 
         DB::afterCommit(fn () => $this->deleteStoredFiles($filesToDelete));
     }
@@ -118,17 +121,20 @@ class ApprovalVoucherAttachmentService
         $storedFile = $this->storeUploadedFile($approvalVoucher, $upload, $kind);
         $storedFiles[] = $storedFile;
 
-        return $approvalVoucher->attachments()->create([
-            'uploaded_by' => $user->id,
-            'kind' => $kind->value,
-            'original_name' => $this->normalizeOriginalName($upload),
-            'disk' => $storedFile['disk'],
-            'path' => $storedFile['path'],
-            'mime_type' => $upload->getMimeType()
-                ?? $upload->getClientMimeType()
-                ?? 'application/octet-stream',
-            'size_bytes' => (int) ($upload->getSize() ?? 0),
-        ]);
+        return $this->approvalVoucherAttachmentRepository->createForVoucher(
+            $approvalVoucher,
+            $user,
+            $kind,
+            [
+                'original_name' => $this->normalizeOriginalName($upload),
+                'disk' => $storedFile['disk'],
+                'path' => $storedFile['path'],
+                'mime_type' => $upload->getMimeType()
+                    ?? $upload->getClientMimeType()
+                    ?? 'application/octet-stream',
+                'size_bytes' => (int) ($upload->getSize() ?? 0),
+            ],
+        );
     }
 
     /**

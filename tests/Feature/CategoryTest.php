@@ -19,19 +19,19 @@ class CategoryTest extends TestCase
     {
         $category = $this->createCategory();
 
-        $this->get(route('categories.index'))->assertRedirect(route('login'));
+        $this->get(route('admin.categories.index'))->assertRedirect(route('login'));
 
-        $this->post(route('categories.store'), [
+        $this->post(route('admin.categories.store'), [
             'name' => 'Food',
             'type' => 'expense',
         ])->assertRedirect(route('login'));
 
-        $this->put(route('categories.update', $category), [
+        $this->put(route('admin.categories.update', $category), [
             'name' => 'Dining',
             'type' => 'expense',
         ])->assertRedirect(route('login'));
 
-        $this->delete(route('categories.destroy', $category))->assertRedirect(route('login'));
+        $this->delete(route('admin.categories.destroy', $category))->assertRedirect(route('login'));
     }
 
     public function test_staff_users_cannot_access_category_management(): void
@@ -39,10 +39,10 @@ class CategoryTest extends TestCase
         $user = User::factory()->create();
         $category = $this->createCategory();
 
-        $this->actingAs($user)->get(route('categories.index'))->assertForbidden();
-        $this->actingAs($user)->post(route('categories.store'), ['name' => 'Food', 'type' => 'expense'])->assertForbidden();
-        $this->actingAs($user)->put(route('categories.update', $category), ['name' => 'Dining', 'type' => 'expense'])->assertForbidden();
-        $this->actingAs($user)->delete(route('categories.destroy', $category))->assertForbidden();
+        $this->actingAs($user)->get(route('admin.categories.index'))->assertForbidden();
+        $this->actingAs($user)->post(route('admin.categories.store'), ['name' => 'Food', 'type' => 'expense'])->assertForbidden();
+        $this->actingAs($user)->put(route('admin.categories.update', $category), ['name' => 'Dining', 'type' => 'expense'])->assertForbidden();
+        $this->actingAs($user)->delete(route('admin.categories.destroy', $category))->assertForbidden();
     }
 
     public function test_admin_can_view_and_create_global_categories(): void
@@ -54,10 +54,10 @@ class CategoryTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('categories.index'))
+            ->get(route('admin.categories.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Categories/Index')
+                ->component('admin/Categories/Index')
                 ->where('filters.type', null)
                 ->has('categories', 1)
                 ->where('categories.0.id', $category->id)
@@ -66,7 +66,7 @@ class CategoryTest extends TestCase
             );
 
         $this->actingAs($admin)
-            ->post(route('categories.store'), [
+            ->post(route('admin.categories.store'), [
                 'name' => '   Food   Allowance   ',
                 'type' => 'income',
             ])
@@ -87,12 +87,12 @@ class CategoryTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->from(route('categories.index'))
-            ->post(route('categories.store'), [
+            ->from(route('admin.categories.index'))
+            ->post(route('admin.categories.store'), [
                 'name' => 'Food',
                 'type' => 'expense',
             ])
-            ->assertRedirect(route('categories.index'))
+            ->assertRedirect(route('admin.categories.index'))
             ->assertSessionHasErrors('name');
     }
 
@@ -127,9 +127,9 @@ class CategoryTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->from(route('categories.index'))
-            ->delete(route('categories.destroy', $category))
-            ->assertRedirect(route('categories.index'))
+            ->from(route('admin.categories.index'))
+            ->delete(route('admin.categories.destroy', $category))
+            ->assertRedirect(route('admin.categories.index'))
             ->assertSessionHas('error', 'This category cannot be deleted because it is already used by transactions or budgets.');
 
         $this->assertDatabaseHas('categories', ['id' => $category->id]);

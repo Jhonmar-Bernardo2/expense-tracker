@@ -47,6 +47,14 @@ class DepartmentRepository
             ->firstOrFail();
     }
 
+    public function findByNormalizedName(string $name): ?Department
+    {
+        return Department::query()
+            ->whereRaw('LOWER(name) = ?', [strtolower($name)])
+            ->orderBy('id')
+            ->first();
+    }
+
     /**
      * @param  array{name: string, description: string|null}  $data
      */
@@ -83,6 +91,42 @@ class DepartmentRepository
     public function delete(Department $department): void
     {
         $department->delete();
+    }
+
+    public function createFinancialManagement(string $name, string $description): Department
+    {
+        return Department::query()->create([
+            'name' => $name,
+            'description' => $description,
+            'is_financial_management' => true,
+            'is_locked' => true,
+        ]);
+    }
+
+    public function clearFinancialManagementFlagsExcept(int $departmentId): void
+    {
+        Department::query()
+            ->whereKeyNot($departmentId)
+            ->where('is_financial_management', true)
+            ->update([
+                'is_financial_management' => false,
+                'is_locked' => false,
+            ]);
+    }
+
+    public function lockAsFinancialManagement(
+        Department $department,
+        string $name,
+        string $description,
+    ): Department {
+        $department->forceFill([
+            'name' => $name,
+            'description' => $department->description ?: $description,
+            'is_financial_management' => true,
+            'is_locked' => true,
+        ])->save();
+
+        return $department->refresh();
     }
 
     /**

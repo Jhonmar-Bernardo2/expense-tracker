@@ -35,8 +35,8 @@ import UserMenuContent from '@/components/UserMenuContent.vue';
 import { useCurrentUrl } from '@/composables/useCurrentUrl';
 import { getInitials } from '@/composables/useInitials';
 import { toUrl } from '@/lib/utils';
-import { dashboard } from '@/routes';
-import { index as notificationsIndex } from '@/routes/notifications';
+import { dashboard } from '@/routes/app';
+import { index as notificationsIndex } from '@/routes/app/notifications';
 import type { BreadcrumbItem, NavItem, User } from '@/types';
 import type { NotificationsShared } from '@/types/notifications';
 

@@ -17,10 +17,10 @@ class UserManagementTest extends TestCase
     {
         $user = User::factory()->create();
 
-        $this->get(route('users.index'))
+        $this->get(route('admin.users.index'))
             ->assertRedirect(route('login'));
 
-        $this->post(route('users.store'), [
+        $this->post(route('admin.users.store'), [
             'name' => 'Staff User',
             'email' => 'staff@example.com',
             'role' => UserRole::Staff->value,
@@ -29,7 +29,7 @@ class UserManagementTest extends TestCase
             'password_confirmation' => 'password',
         ])->assertRedirect(route('login'));
 
-        $this->put(route('users.update', $user), [
+        $this->put(route('admin.users.update', $user), [
             'name' => 'Updated User',
             'email' => 'updated@example.com',
             'role' => UserRole::Staff->value,
@@ -37,7 +37,7 @@ class UserManagementTest extends TestCase
             'is_active' => true,
         ])->assertRedirect(route('login'));
 
-        $this->patch(route('users.status.update', $user), [
+        $this->patch(route('admin.users.status.update', $user), [
             'is_active' => false,
         ])->assertRedirect(route('login'));
     }
@@ -53,11 +53,11 @@ class UserManagementTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->get(route('users.index'))
+            ->get(route('admin.users.index'))
             ->assertForbidden();
 
         $this->actingAs($staff)
-            ->post(route('users.store'), [
+            ->post(route('admin.users.store'), [
                 'name' => 'New Staff',
                 'email' => 'newstaff@example.com',
                 'role' => UserRole::Staff->value,
@@ -67,7 +67,7 @@ class UserManagementTest extends TestCase
             ])->assertForbidden();
 
         $this->actingAs($staff)
-            ->put(route('users.update', $managedUser), [
+            ->put(route('admin.users.update', $managedUser), [
                 'name' => 'Updated Staff',
                 'email' => 'updatedstaff@example.com',
                 'role' => UserRole::Staff->value,
@@ -76,7 +76,7 @@ class UserManagementTest extends TestCase
             ])->assertForbidden();
 
         $this->actingAs($staff)
-            ->patch(route('users.status.update', $managedUser), [
+            ->patch(route('admin.users.status.update', $managedUser), [
                 'is_active' => false,
             ])->assertForbidden();
     }
@@ -98,10 +98,10 @@ class UserManagementTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('users.index'))
+            ->get(route('admin.users.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Users/Index')
+                ->component('admin/Users/Index')
                 ->has('users', 2)
                 ->where('users.0.name', 'Admin User')
                 ->where('users.0.role', UserRole::Admin->value)
@@ -125,7 +125,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->post(route('users.store'), [
+            ->post(route('admin.users.store'), [
                 'name' => '  Operations Staff  ',
                 'email' => 'OPERATIONS@example.com',
                 'role' => UserRole::Staff->value,
@@ -162,7 +162,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->put(route('users.update', $managedUser), [
+            ->put(route('admin.users.update', $managedUser), [
                 'name' => 'Updated Staff',
                 'email' => 'updated-staff@example.com',
                 'role' => UserRole::Admin->value,
@@ -189,7 +189,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->patch(route('users.status.update', $managedUser), [
+            ->patch(route('admin.users.status.update', $managedUser), [
                 'is_active' => false,
             ])
             ->assertRedirect();
@@ -205,15 +205,15 @@ class UserManagementTest extends TestCase
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
-            ->from(route('users.index'))
-            ->put(route('users.update', $admin), [
+            ->from(route('admin.users.index'))
+            ->put(route('admin.users.update', $admin), [
                 'name' => $admin->name,
                 'email' => $admin->email,
                 'role' => UserRole::Staff->value,
                 'department_id' => $admin->department_id,
                 'is_active' => true,
             ])
-            ->assertRedirect(route('users.index'))
+            ->assertRedirect(route('admin.users.index'))
             ->assertSessionHasErrors('role');
 
         $this->assertSame(UserRole::Admin, $admin->fresh()->role);
@@ -224,11 +224,11 @@ class UserManagementTest extends TestCase
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
-            ->from(route('users.index'))
-            ->patch(route('users.status.update', $admin), [
+            ->from(route('admin.users.index'))
+            ->patch(route('admin.users.status.update', $admin), [
                 'is_active' => false,
             ])
-            ->assertRedirect(route('users.index'))
+            ->assertRedirect(route('admin.users.index'))
             ->assertSessionHasErrors('is_active');
 
         $this->assertTrue($admin->fresh()->is_active);
@@ -242,23 +242,23 @@ class UserManagementTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->from(route('users.index'))
-            ->put(route('users.update', $systemAccount), [
+            ->from(route('admin.users.index'))
+            ->put(route('admin.users.update', $systemAccount), [
                 'name' => 'Changed Name',
                 'email' => $systemAccount->email,
                 'role' => UserRole::Staff->value,
                 'department_id' => $admin->department_id,
                 'is_active' => true,
             ])
-            ->assertRedirect(route('users.index'))
+            ->assertRedirect(route('admin.users.index'))
             ->assertSessionHasErrors('user');
 
         $this->actingAs($admin)
-            ->from(route('users.index'))
-            ->patch(route('users.status.update', $systemAccount), [
+            ->from(route('admin.users.index'))
+            ->patch(route('admin.users.status.update', $systemAccount), [
                 'is_active' => false,
             ])
-            ->assertRedirect(route('users.index'))
+            ->assertRedirect(route('admin.users.index'))
             ->assertSessionHasErrors('is_active');
 
         $systemAccount->refresh();
@@ -273,7 +273,7 @@ class UserManagementTest extends TestCase
         $inactiveUser = User::factory()->inactive()->create();
 
         $response = $this->actingAs($inactiveUser)
-            ->get(route('dashboard'));
+            ->get(route('app.dashboard'));
 
         $response->assertRedirect(route('login'));
         $response->assertSessionHas('error', 'Your account is inactive. Please contact an administrator.');
@@ -291,19 +291,19 @@ class UserManagementTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard'))
+            ->get(route('app.dashboard'))
             ->assertOk();
 
         $this->actingAs($admin)
-            ->get(route('categories.index'))
+            ->get(route('admin.categories.index'))
             ->assertOk();
 
         $this->actingAs($staff)
-            ->get(route('dashboard'))
+            ->get(route('app.dashboard'))
             ->assertOk();
 
         $this->actingAs($staff)
-            ->get(route('categories.index'))
+            ->get(route('admin.categories.index'))
             ->assertOk();
     }
 

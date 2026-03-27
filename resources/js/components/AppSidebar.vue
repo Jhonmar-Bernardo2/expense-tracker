@@ -26,14 +26,14 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-import { dashboard } from '@/routes';
-import { index as approvalVouchers } from '@/routes/approval-vouchers';
-import { index as budgets } from '@/routes/budgets';
-import { index as categories } from '@/routes/categories';
-import { index as departments } from '@/routes/departments';
-import { index as reports } from '@/routes/reports';
-import { index as transactions } from '@/routes/transactions';
-import { index as users } from '@/routes/users';
+import { dashboard } from '@/routes/app';
+import { index as approvalVouchers } from '@/routes/app/approval-vouchers';
+import { index as budgets } from '@/routes/finance/budgets';
+import { index as categories } from '@/routes/admin/categories';
+import { index as departments } from '@/routes/admin/departments';
+import { index as reports } from '@/routes/app/reports';
+import { index as transactions } from '@/routes/app/transactions';
+import { index as users } from '@/routes/admin/users';
 import type { BudgetAccessShared, NavItem, User } from '@/types';
 import type { WorkflowShared } from '@/types/notifications';
 

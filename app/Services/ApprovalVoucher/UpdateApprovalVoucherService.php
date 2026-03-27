@@ -4,6 +4,7 @@ namespace App\Services\ApprovalVoucher;
 
 use App\Models\ApprovalVoucher;
 use App\Models\User;
+use App\Repositories\ApprovalVoucherRepository;
 use App\Services\ActivityLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -11,6 +12,7 @@ use Illuminate\Validation\ValidationException;
 class UpdateApprovalVoucherService
 {
     public function __construct(
+        private readonly ApprovalVoucherRepository $approvalVoucherRepository,
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
         private readonly ApprovalVoucherAttachmentService $approvalVoucherAttachmentService,
         private readonly ActivityLogService $activityLogService,
@@ -33,7 +35,7 @@ class UpdateApprovalVoucherService
             return DB::transaction(function () use ($user, $approvalVoucher, $data, &$storedFiles): ApprovalVoucher {
                 $payload = $this->approvalVoucherPayloadService->buildDraftPayload($user, $data);
 
-                $approvalVoucher->update([
+                $approvalVoucher = $this->approvalVoucherRepository->updateRecord($approvalVoucher, [
                     'department_id' => $payload['department_id'],
                     'module' => $payload['module']->value,
                     'action' => $payload['action']->value,
@@ -42,8 +44,6 @@ class UpdateApprovalVoucherService
                     'after_payload' => $payload['after_payload'],
                     'remarks' => $data['remarks'] ?? null,
                 ]);
-
-                $approvalVoucher = $approvalVoucher->refresh();
 
                 $this->approvalVoucherAttachmentService->syncForVoucher(
                     $user,

@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Settings;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Settings\PasswordUpdateRequest;
 use App\Http\Requests\Settings\TwoFactorAuthenticationRequest;
+use App\Http\Resources\Settings\SecurityPageResource;
+use App\Services\User\UpdatePasswordService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Routing\Controllers\HasMiddleware;
 use Illuminate\Routing\Controllers\Middleware;
@@ -31,27 +33,31 @@ class SecurityController extends Controller implements HasMiddleware
     public function edit(TwoFactorAuthenticationRequest $request): Response
     {
         $props = [
-            'canManageTwoFactor' => Features::canManageTwoFactorAuthentication(),
+            'can_manage_two_factor' => Features::canManageTwoFactorAuthentication(),
         ];
 
         if (Features::canManageTwoFactorAuthentication()) {
             $request->ensureStateIsValid();
 
-            $props['twoFactorEnabled'] = $request->user()->hasEnabledTwoFactorAuthentication();
-            $props['requiresConfirmation'] = Features::optionEnabled(Features::twoFactorAuthentication(), 'confirm');
+            $props['two_factor_enabled'] = $request->user()->hasEnabledTwoFactorAuthentication();
+            $props['requires_confirmation'] = Features::optionEnabled(Features::twoFactorAuthentication(), 'confirm');
         }
 
-        return Inertia::render('settings/Security', $props);
+        return Inertia::render('settings/Security', (new SecurityPageResource($props))->resolve($request));
     }
 
     /**
      * Update the user's password.
      */
-    public function update(PasswordUpdateRequest $request): RedirectResponse
+    public function update(
+        PasswordUpdateRequest $request,
+        UpdatePasswordService $updatePasswordService,
+    ): RedirectResponse
     {
-        $request->user()->update([
-            'password' => $request->password,
-        ]);
+        $updatePasswordService->handle(
+            $request->user(),
+            (string) $request->validated('password'),
+        );
 
         return back()->with('success', 'Password updated.');
     }

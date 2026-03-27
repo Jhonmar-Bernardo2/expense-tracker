@@ -13,6 +13,7 @@ use App\Repositories\BudgetAllocationRepository;
 use App\Repositories\BudgetRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\Budget\BudgetAccessService;
+use App\Services\Budget\BudgetAllocationSummaryService;
 use App\Services\Department\DepartmentScopeService;
 use Illuminate\Validation\ValidationException;
 
@@ -23,6 +24,7 @@ class ApprovalVoucherPayloadService
         private readonly BudgetRepository $budgetRepository,
         private readonly BudgetAllocationRepository $budgetAllocationRepository,
         private readonly BudgetAccessService $budgetAccessService,
+        private readonly BudgetAllocationSummaryService $budgetAllocationSummaryService,
         private readonly DepartmentScopeService $departmentScopeService,
     ) {
     }
@@ -42,6 +44,7 @@ class ApprovalVoucherPayloadService
     {
         $module = ApprovalVoucherModule::from((string) $data['module']);
         $action = ApprovalVoucherAction::from((string) $data['action']);
+        $this->assertAllocationDeleteIsDisabled($module, $action);
         $target = $this->findRequesterTarget(
             $user,
             $module,
@@ -54,7 +57,6 @@ class ApprovalVoucherPayloadService
 
         $this->assertBudgetConflict($module, $action, $afterPayload, $target?->id);
         $this->assertAllocationConflict($module, $action, $afterPayload, $target?->id);
-        $this->assertAllocationDeleteAllowed($module, $action, $target);
 
         return [
             'module' => $module,
@@ -75,15 +77,9 @@ class ApprovalVoucherPayloadService
         return match ($approvalVoucher->action) {
             ApprovalVoucherAction::Create => null,
             default => match ($approvalVoucher->module) {
-                ApprovalVoucherModule::Transaction => Transaction::query()
-                    ->active()
-                    ->find($approvalVoucher->target_id),
-                ApprovalVoucherModule::Budget => Budget::query()
-                    ->active()
-                    ->find($approvalVoucher->target_id),
-                ApprovalVoucherModule::Allocation => BudgetAllocation::query()
-                    ->active()
-                    ->find($approvalVoucher->target_id),
+                ApprovalVoucherModule::Transaction => $this->transactionRepository->findActiveById($approvalVoucher->target_id),
+                ApprovalVoucherModule::Budget => $this->budgetRepository->findActiveById($approvalVoucher->target_id),
+                ApprovalVoucherModule::Allocation => $this->budgetAllocationRepository->findActiveById($approvalVoucher->target_id),
             },
         };
     }
@@ -92,6 +88,8 @@ class ApprovalVoucherPayloadService
         ApprovalVoucher $approvalVoucher,
         Transaction|Budget|BudgetAllocation|null $target,
     ): void {
+        $this->assertAllocationDeleteIsDisabled($approvalVoucher->module, $approvalVoucher->action);
+
         if ($approvalVoucher->action !== ApprovalVoucherAction::Create && $target === null) {
             $entity = match ($approvalVoucher->module) {
                 ApprovalVoucherModule::Transaction => 'transaction',
@@ -119,11 +117,6 @@ class ApprovalVoucherPayloadService
             $approvalVoucher->action,
             $approvalVoucher->after_payload,
             $ignoreTargetId,
-        );
-        $this->assertAllocationDeleteAllowed(
-            $approvalVoucher->module,
-            $approvalVoucher->action,
-            $target,
         );
     }
 
@@ -258,7 +251,7 @@ class ApprovalVoucherPayloadService
             return $this->budgetAccessService->resolveBudgetDepartmentId();
         }
 
-        return $this->departmentScopeService->resolveWritableDepartmentId(
+        return $this->departmentScopeService->resolveTransactionWritableDepartmentId(
             $user,
             isset($data['department_id']) ? (int) $data['department_id'] : null,
         );
@@ -295,29 +288,17 @@ class ApprovalVoucherPayloadService
             ]);
         }
 
-        $approvedAllocation = $this->budgetAllocationRepository->getActiveForPeriod(
+        $validationMessage = $this->budgetAllocationSummaryService->getCategoryBudgetValidationMessage(
             (int) $afterPayload['department_id'],
             (int) $afterPayload['month'],
             (int) $afterPayload['year'],
-        );
-
-        if ($approvedAllocation === null) {
-            throw ValidationException::withMessages([
-                'amount_limit' => 'An approved monthly total allocation is required before category budgets can be managed.',
-            ]);
-        }
-
-        $currentTotal = $this->budgetRepository->sumActiveAmountLimitForPeriod(
-            (int) $afterPayload['department_id'],
-            (int) $afterPayload['month'],
-            (int) $afterPayload['year'],
+            (float) $afterPayload['amount_limit'],
             $ignoreBudgetId,
         );
-        $proposedTotal = round($currentTotal + (float) $afterPayload['amount_limit'], 2);
 
-        if ($proposedTotal > round((float) $approvedAllocation->amount_limit, 2)) {
+        if ($validationMessage !== null) {
             throw ValidationException::withMessages([
-                'amount_limit' => 'Category budgets cannot exceed the approved monthly total allocation.',
+                'amount_limit' => $validationMessage,
             ]);
         }
     }
@@ -367,31 +348,16 @@ class ApprovalVoucherPayloadService
         ]);
     }
 
-    private function assertAllocationDeleteAllowed(
+    private function assertAllocationDeleteIsDisabled(
         ApprovalVoucherModule $module,
         ApprovalVoucherAction $action,
-        Transaction|Budget|BudgetAllocation|null $target,
     ): void {
-        if (
-            $module !== ApprovalVoucherModule::Allocation
-            || $action !== ApprovalVoucherAction::Delete
-            || ! $target instanceof BudgetAllocation
-        ) {
-            return;
-        }
-
-        $currentAllocated = $this->budgetRepository->sumActiveAmountLimitForPeriod(
-            (int) $target->department_id,
-            (int) $target->month,
-            (int) $target->year,
-        );
-
-        if ($currentAllocated <= 0) {
+        if ($module !== ApprovalVoucherModule::Allocation || $action !== ApprovalVoucherAction::Delete) {
             return;
         }
 
         throw ValidationException::withMessages([
-            'approval_voucher' => 'Remove the active category budgets for this month before deleting the total allocation.',
+            'approval_voucher' => 'Monthly budget removal requests are no longer supported.',
         ]);
     }
 }

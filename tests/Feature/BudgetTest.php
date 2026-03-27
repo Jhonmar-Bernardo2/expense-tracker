@@ -9,6 +9,7 @@ use App\Models\Category;
 use App\Models\Department;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Budget\BudgetAllocationSummaryService;
 use App\Services\Department\FinancialManagementDepartmentService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -30,9 +31,9 @@ class BudgetTest extends TestCase
     {
         $category = $this->createCategory();
 
-        $this->get(route('budgets.index'))->assertRedirect(route('login'));
+        $this->get(route('finance.budgets.index'))->assertRedirect(route('login'));
 
-        $this->post(route('approval-vouchers.store'), [
+        $this->post(route('app.approval-vouchers.store'), [
             'module' => 'allocation',
             'action' => 'create',
             'month' => 3,
@@ -40,7 +41,7 @@ class BudgetTest extends TestCase
             'amount_limit' => 10000,
         ])->assertRedirect(route('login'));
 
-        $this->post(route('budgets.store'), [
+        $this->post(route('finance.budgets.store'), [
             'category_id' => $category->id,
             'month' => 3,
             'year' => 2026,
@@ -55,11 +56,11 @@ class BudgetTest extends TestCase
         $category = $this->createCategory();
 
         $this->actingAs($staff)
-            ->get(route('budgets.index'))
+            ->get(route('finance.budgets.index'))
             ->assertForbidden();
 
         $this->actingAs($staff)
-            ->post(route('approval-vouchers.store'), [
+            ->post(route('app.approval-vouchers.store'), [
                 'module' => 'allocation',
                 'action' => 'create',
                 'month' => 4,
@@ -69,7 +70,7 @@ class BudgetTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($staff)
-            ->post(route('budgets.store'), [
+            ->post(route('finance.budgets.store'), [
                 'category_id' => $category->id,
                 'month' => 4,
                 'year' => 2026,
@@ -124,16 +125,22 @@ class BudgetTest extends TestCase
         ]);
 
         $this->actingAs($financialUser)
-            ->get(route('budgets.index'))
+            ->get(route('finance.budgets.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Budgets/Index')
+                ->component('finance/Budgets/Index')
                 ->where('active_allocation.id', $allocation->id)
                 ->where('allocation_summary.approved_allocation', 2000)
+                ->where('allocation_summary.total_approved_budget', 2000)
                 ->where('allocation_summary.total_allocated', 1000)
+                ->where('allocation_summary.total_allocated_budget', 1000)
                 ->where('allocation_summary.total_unallocated', 1000)
+                ->where('allocation_summary.remaining_budget', 1000)
                 ->where('allocation_summary.total_spent', 650)
                 ->where('allocation_summary.total_remaining', 1350)
+                ->where('allocation_summary.remaining_after_spending', 1350)
+                ->where('allocation_summary.can_allocate_category_budgets', true)
+                ->where('allocation_summary.allocation_block_message', null)
                 ->where('budgets.0.id', $budget->id)
                 ->where('budgets.0.amount_spent', 650)
             );
@@ -147,7 +154,7 @@ class BudgetTest extends TestCase
         $category = $this->createCategory(['name' => 'Utilities']);
 
         $this->actingAs($admin)
-            ->get(route('budgets.index'))
+            ->get(route('finance.budgets.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('budget_access.can_view_page', true)
@@ -156,7 +163,7 @@ class BudgetTest extends TestCase
             );
 
         $this->actingAs($admin)
-            ->post(route('approval-vouchers.store'), [
+            ->post(route('app.approval-vouchers.store'), [
                 'module' => 'allocation',
                 'action' => 'create',
                 'month' => 6,
@@ -166,13 +173,40 @@ class BudgetTest extends TestCase
             ->assertForbidden();
 
         $this->actingAs($admin)
-            ->post(route('budgets.store'), [
+            ->post(route('finance.budgets.store'), [
                 'category_id' => $category->id,
                 'month' => 6,
                 'year' => 2026,
                 'amount_limit' => 7000,
             ])
             ->assertForbidden();
+    }
+
+    public function test_financial_management_cannot_submit_monthly_budget_removal_requests(): void
+    {
+        $financialDepartment = $this->financialManagementDepartment();
+        $financialUser = User::factory()->for($financialDepartment)->create();
+        $allocation = $this->createAllocation($financialUser, $financialDepartment, [
+            'month' => 6,
+            'year' => 2026,
+            'amount_limit' => 150000,
+        ]);
+
+        $this->actingAs($financialUser)
+            ->from(route('finance.budgets.index'))
+            ->post(route('app.approval-vouchers.store'), [
+                'module' => 'allocation',
+                'action' => 'delete',
+                'target_id' => $allocation->id,
+                'auto_submit' => true,
+            ])
+            ->assertRedirect(route('finance.budgets.index'))
+            ->assertSessionHasErrors([
+                'action' => 'Monthly budget removal requests are no longer supported.',
+            ]);
+
+        $this->assertDatabaseCount('approval_vouchers', 0);
+        $this->assertNull($allocation->fresh()->archived_at);
     }
 
     public function test_category_budgets_require_an_approved_monthly_allocation(): void
@@ -182,14 +216,14 @@ class BudgetTest extends TestCase
         $category = $this->createCategory();
 
         $this->actingAs($financialUser)
-            ->from(route('budgets.index'))
-            ->post(route('budgets.store'), [
+            ->from(route('finance.budgets.index'))
+            ->post(route('finance.budgets.store'), [
                 'category_id' => $category->id,
                 'month' => 5,
                 'year' => 2026,
                 'amount_limit' => 2500,
             ])
-            ->assertRedirect(route('budgets.index'))
+            ->assertRedirect(route('finance.budgets.index'))
             ->assertSessionHasErrors('amount_limit');
 
         $this->assertDatabaseCount('budgets', 0);
@@ -214,15 +248,56 @@ class BudgetTest extends TestCase
         ]);
 
         $this->actingAs($financialUser)
-            ->from(route('budgets.index'))
-            ->post(route('budgets.store'), [
+            ->from(route('finance.budgets.index'))
+            ->post(route('finance.budgets.store'), [
                 'category_id' => $utilities->id,
                 'month' => 5,
                 'year' => 2026,
                 'amount_limit' => 400,
             ])
-            ->assertRedirect(route('budgets.index'))
+            ->assertRedirect(route('finance.budgets.index'))
             ->assertSessionHasErrors('amount_limit');
+
+        $this->assertSame(
+            1,
+            Budget::query()
+                ->active()
+                ->where('month', 5)
+                ->where('year', 2026)
+                ->count(),
+        );
+    }
+
+    public function test_category_budget_shows_exact_error_when_no_department_budget_is_left_to_allocate(): void
+    {
+        $financialDepartment = $this->financialManagementDepartment();
+        $financialUser = User::factory()->for($financialDepartment)->create();
+        $food = $this->createCategory(['name' => 'Food']);
+        $utilities = $this->createCategory(['name' => 'Utilities']);
+
+        $this->createAllocation($financialUser, $financialDepartment, [
+            'month' => 5,
+            'year' => 2026,
+            'amount_limit' => 1000,
+        ]);
+        $this->createBudget($financialUser, $financialDepartment, $food, [
+            'month' => 5,
+            'year' => 2026,
+            'amount_limit' => 1000,
+        ]);
+
+        $this->actingAs($financialUser)
+            ->from(route('finance.budgets.index'))
+            ->post(route('finance.budgets.store'), [
+                'category_id' => $utilities->id,
+                'month' => 5,
+                'year' => 2026,
+                'amount_limit' => 1,
+            ])
+            ->assertRedirect(route('finance.budgets.index'))
+            ->assertSessionHasErrors([
+                'amount_limit' => BudgetAllocationSummaryService::NO_AVAILABLE_BUDGET_MESSAGE,
+            ]);
 
         $this->assertSame(
             1,

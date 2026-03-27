@@ -29,7 +29,13 @@ class AuthenticationTest extends TestCase
         ]);
 
         $this->assertAuthenticated();
-        $response->assertRedirect(route('dashboard', absolute: false));
+        $response->assertRedirect(route('app.dashboard', absolute: false));
+    }
+
+    public function test_legacy_dashboard_path_redirects_to_the_app_dashboard(): void
+    {
+        $this->get('/dashboard')
+            ->assertRedirect('/app/dashboard');
     }
 
     public function test_users_with_two_factor_enabled_are_redirected_to_two_factor_challenge()

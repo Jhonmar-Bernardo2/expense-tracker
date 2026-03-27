@@ -2,6 +2,7 @@
 
 namespace App\Services\ApprovalVoucher;
 
+use App\Enums\ApprovalVoucherModule;
 use App\Enums\ApprovalVoucherStatus;
 use App\Models\ApprovalVoucher;
 use App\Models\User;
@@ -15,6 +16,7 @@ class StoreApprovalVoucherService
         private readonly ApprovalVoucherRepository $approvalVoucherRepository,
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
         private readonly ApprovalVoucherAttachmentService $approvalVoucherAttachmentService,
+        private readonly ApproveApprovalVoucherService $approveApprovalVoucherService,
         private readonly ActivityLogService $activityLogService,
         private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
     ) {}
@@ -31,7 +33,7 @@ class StoreApprovalVoucherService
                 $payload = $this->approvalVoucherPayloadService->buildDraftPayload($user, $data);
                 $shouldAutoSubmit = (bool) ($data['auto_submit'] ?? false);
 
-                $approvalVoucher = ApprovalVoucher::query()->create([
+                $approvalVoucher = $this->approvalVoucherRepository->create([
                     'voucher_no' => 'PENDING',
                     'department_id' => $payload['department_id'],
                     'requested_by' => $user->id,
@@ -47,11 +49,9 @@ class StoreApprovalVoucherService
                     'submitted_at' => $shouldAutoSubmit ? now() : null,
                 ]);
 
-                $approvalVoucher->update([
+                $approvalVoucher = $this->approvalVoucherRepository->updateRecord($approvalVoucher, [
                     'voucher_no' => $this->approvalVoucherRepository->formatVoucherNumber($approvalVoucher),
                 ]);
-
-                $approvalVoucher = $approvalVoucher->refresh();
 
                 $this->approvalVoucherAttachmentService->syncForVoucher(
                     $user,
@@ -64,6 +64,15 @@ class StoreApprovalVoucherService
 
                 if ($shouldAutoSubmit) {
                     $this->activityLogService->logApprovalVoucherSubmitted($user, $approvalVoucher);
+
+                    if ($this->shouldAutoApplyTransactionRequest($user, $approvalVoucher)) {
+                        return $this->approveApprovalVoucherService->applyImmediately(
+                            $user,
+                            $approvalVoucher,
+                            $data['remarks'] ?? $approvalVoucher->remarks,
+                        );
+                    }
+
                     $this->approvalVoucherNotificationService->notifyApproversOfSubmission($approvalVoucher);
                 }
 
@@ -74,5 +83,12 @@ class StoreApprovalVoucherService
 
             throw $throwable;
         }
+    }
+
+    private function shouldAutoApplyTransactionRequest(User $user, ApprovalVoucher $approvalVoucher): bool
+    {
+        return $user->isFinancialManagement()
+            && $approvalVoucher->module === ApprovalVoucherModule::Transaction
+            && $approvalVoucher->status === ApprovalVoucherStatus::PendingApproval;
     }
 }

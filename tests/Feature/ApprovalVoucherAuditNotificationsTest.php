@@ -29,7 +29,7 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
             'department_id' => $financialDepartment->id,
         ]);
         $this->actingAs($staff)
-            ->post(route('approval-vouchers.store'), [
+            ->post(route('app.approval-vouchers.store'), [
                 'module' => 'transaction',
                 'action' => 'create',
                 'department_id' => $department->id,
@@ -73,7 +73,7 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
         ]);
 
         $this->actingAs($financialApprover)
-            ->patch(route('approval-vouchers.approve', $approvalVoucher), [
+            ->patch(route('app.approval-vouchers.approve', $approvalVoucher), [
                 'remarks' => 'Approved for payment.',
             ])
             ->assertRedirect();
@@ -107,7 +107,7 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
         $approvalVoucher = $this->submitTransactionVoucher($staff, $department, $category);
 
         $this->actingAs($financialApprover)
-            ->patch(route('approval-vouchers.reject', $approvalVoucher), [
+            ->patch(route('app.approval-vouchers.reject', $approvalVoucher), [
                 'rejection_reason' => 'Missing supporting receipt.',
             ])
             ->assertRedirect();
@@ -163,10 +163,13 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
         $this->assertNotNull($markAllNotification);
 
         $this->actingAs($user)
-            ->get(route('notifications.index'))
+            ->get(route('app.notifications.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Notifications/Index')
+                ->component('app/Notifications/Index')
+                ->where('notification_items.meta.total', 2)
+                ->where('notification_items.meta.last_page', 1)
+                ->where('notification_items.links.next', null)
                 ->has('notification_items.data', 2)
                 ->where('notification_items.data', fn ($items) => collect($items)
                     ->pluck('id')
@@ -179,19 +182,19 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
             );
 
         $this->actingAs($user)
-            ->patch(route('notifications.read', $otherNotification->id))
+            ->patch(route('app.notifications.read', $otherNotification->id))
             ->assertNotFound();
 
         $this->assertNull($otherNotification->fresh()->read_at);
 
         $this->actingAs($user)
-            ->patch(route('notifications.read', $myNotification->id))
+            ->patch(route('app.notifications.read', $myNotification->id))
             ->assertRedirect();
 
         $this->assertNotNull($myNotification->fresh()->read_at);
 
         $this->actingAs($user)
-            ->patch(route('notifications.read-all'))
+            ->patch(route('app.notifications.read-all'))
             ->assertRedirect();
 
         $this->assertSame(0, $user->fresh()->unreadNotifications()->count());
@@ -205,17 +208,17 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
         $otherStaff = User::factory()->create();
 
         $this->actingAs($staff)
-            ->get(route('approval-vouchers.show', $approvalVoucher))
+            ->get(route('app.approval-vouchers.show', $approvalVoucher))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('ApprovalVouchers/Show')
+                ->component('app/ApprovalVouchers/Show')
                 ->where('approval_voucher.id', $approvalVoucher->id)
                 ->has('activity_logs', 2)
                 ->where('activity_logs.0.event', 'approval_voucher.submitted')
             );
 
         $this->actingAs($otherStaff)
-            ->get(route('approval-vouchers.show', $approvalVoucher))
+            ->get(route('app.approval-vouchers.show', $approvalVoucher))
             ->assertNotFound();
     }
 
@@ -256,9 +259,11 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
             ]);
 
             $this->actingAs($staff)
-                ->get(route('approval-vouchers.index'))
+                ->get(route('app.approval-vouchers.index'))
                 ->assertOk()
                 ->assertInertia(fn (Assert $page) => $page
+                    ->where('approval_vouchers.meta.total', 1)
+                    ->where('approval_vouchers.links.prev', null)
                     ->where('approval_vouchers.data.0.id', $approvalVoucher->id)
                     ->where('approval_vouchers.data.0.pending_age_days', 4)
                     ->where('approval_vouchers.data.0.is_overdue', true)
@@ -310,7 +315,7 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
         $payload['auto_submit'] ??= true;
 
         $this->actingAs($staff)
-            ->post(route('approval-vouchers.store'), $payload)
+            ->post(route('app.approval-vouchers.store'), $payload)
             ->assertRedirect();
 
         return ApprovalVoucher::query()->latest('id')->firstOrFail();

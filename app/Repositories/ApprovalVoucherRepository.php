@@ -80,6 +80,67 @@ class ApprovalVoucherRepository
         return $approvalVoucher->fresh($this->detailRelations());
     }
 
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function create(array $attributes): ApprovalVoucher
+    {
+        return ApprovalVoucher::query()->create($attributes);
+    }
+
+    /**
+     * @param  array<string, mixed>  $attributes
+     */
+    public function updateRecord(ApprovalVoucher $approvalVoucher, array $attributes): ApprovalVoucher
+    {
+        $approvalVoucher->update($attributes);
+
+        return $approvalVoucher->refresh();
+    }
+
+    public function markAsSubmitted(ApprovalVoucher $approvalVoucher): ApprovalVoucher
+    {
+        return $this->updateRecord($approvalVoucher, [
+            'status' => ApprovalVoucherStatus::PendingApproval->value,
+            'submitted_at' => now(),
+            'approved_by' => null,
+            'approved_at' => null,
+            'rejected_at' => null,
+            'applied_at' => null,
+            'rejection_reason' => null,
+        ]);
+    }
+
+    public function markAsRejected(ApprovalVoucher $approvalVoucher, string $rejectionReason): ApprovalVoucher
+    {
+        return $this->updateRecord($approvalVoucher, [
+            'status' => ApprovalVoucherStatus::Rejected->value,
+            'rejected_at' => now(),
+            'rejection_reason' => trim($rejectionReason),
+            'approved_by' => null,
+            'approved_at' => null,
+            'applied_at' => null,
+        ]);
+    }
+
+    public function markAsApproved(
+        ApprovalVoucher $approvalVoucher,
+        User $actor,
+        int $targetId,
+        ?string $remarks = null,
+    ): ApprovalVoucher {
+        return $this->updateRecord($approvalVoucher, [
+            'status' => ApprovalVoucherStatus::Approved->value,
+            'approved_by' => $actor->id,
+            'approved_at' => now(),
+            'applied_at' => now(),
+            'target_id' => $targetId,
+            'remarks' => $remarks ?? $approvalVoucher->remarks,
+            'rejection_reason' => null,
+            'rejected_at' => null,
+        ]);
+    }
+
     public function countPendingFor(User $user): int
     {
         $query = $this->visibleQuery($user)

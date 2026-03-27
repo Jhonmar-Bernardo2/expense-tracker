@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Repositories\ApprovalVoucherRepository;
+use App\Repositories\NotificationRepository;
 use App\Services\Budget\BudgetAccessService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -65,7 +66,9 @@ class HandleInertiaRequests extends Middleware
                 'status' => fn () => $request->session()->get('status'),
             ],
             'notifications' => [
-                'unread_count' => $user?->unreadNotifications()->count() ?? 0,
+                'unread_count' => $user === null
+                    ? 0
+                    : app(NotificationRepository::class)->countUnread($user),
             ],
             'workflow' => [
                 'pending_approval_vouchers_count' => $user === null

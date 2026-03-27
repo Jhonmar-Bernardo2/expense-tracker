@@ -40,10 +40,21 @@ class TransactionRepository
         return Transaction::query()
             ->active()
             ->when(
-                ! $user->isAdmin(),
+                ! ($user->isAdmin() || $user->isFinancialManagement()),
                 fn (Builder $query) => $query->where('department_id', $user->department_id),
             )
             ->findOrFail($transactionId);
+    }
+
+    public function findActiveById(?int $transactionId): ?Transaction
+    {
+        if ($transactionId === null) {
+            return null;
+        }
+
+        return Transaction::query()
+            ->active()
+            ->find($transactionId);
     }
 
     /**

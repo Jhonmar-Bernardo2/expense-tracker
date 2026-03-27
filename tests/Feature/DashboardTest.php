@@ -27,7 +27,7 @@ class DashboardTest extends TestCase
 
     public function test_guests_are_redirected_to_the_login_page(): void
     {
-        $this->get(route('dashboard'))->assertRedirect(route('login'));
+        $this->get(route('app.dashboard'))->assertRedirect(route('login'));
     }
 
     public function test_staff_dashboard_remains_department_scoped_and_hides_central_budget_sections(): void
@@ -76,10 +76,10 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('dashboard', ['department' => $otherDepartment->id]))
+            ->get(route('app.dashboard', ['department' => $otherDepartment->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Dashboard')
+                ->component('app/Dashboard')
                 ->where('department_scope.department_id', $department->id)
                 ->where('department_scope.can_select_department', false)
                 ->where('dashboard_view.mode', 'staff')
@@ -148,7 +148,7 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('dashboard', ['department' => $departmentB->id]))
+            ->get(route('app.dashboard', ['department' => $departmentB->id]))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('dashboard_view.mode', 'admin')
@@ -218,7 +218,7 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($financialUser)
-            ->get(route('dashboard'))
+            ->get(route('app.dashboard'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('dashboard_view.mode', 'financial_management')
@@ -265,7 +265,7 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
+            ->get(route('app.dashboard'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('dashboard_view.mode', 'staff')
@@ -318,13 +318,13 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
+            ->get(route('app.dashboard'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('dashboard_view.attention_banner.tone', 'warning')
                 ->where('dashboard_view.attention_banner.title', 'A recent request needs updates')
                 ->where('dashboard_view.attention_banner.description', '"Travel reimbursement" was rejected recently. Review the feedback and resubmit when ready.')
-                ->where('dashboard_view.attention_banner.href', route('approval-vouchers.show', $rejectedVoucher, false))
+                ->where('dashboard_view.attention_banner.href', route('app.approval-vouchers.show', $rejectedVoucher, false))
                 ->where('dashboard_view.attention_banner.action_label', 'Review request')
                 ->has('dashboard_view.primary_section.items', 2)
             );
@@ -354,7 +354,7 @@ class DashboardTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->get(route('dashboard'))
+            ->get(route('app.dashboard'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('dashboard_view.mode', 'staff')

@@ -3,6 +3,10 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\Auth\ForgotPasswordPageResource;
+use App\Http\Resources\Auth\LoginPageResource;
+use App\Http\Resources\Auth\ResetPasswordPageResource;
+use App\Http\Resources\Auth\VerifyEmailPageResource;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -12,11 +16,11 @@ class AuthViewController extends Controller
 {
     public function login(Request $request): Response
     {
-        return Inertia::render('auth/Login', [
-            'canResetPassword' => Features::enabled(Features::resetPasswords()),
-            'canRegister' => Features::enabled(Features::registration()),
+        return Inertia::render('auth/Login', (new LoginPageResource([
+            'can_reset_password' => Features::enabled(Features::resetPasswords()),
+            'can_register' => Features::enabled(Features::registration()),
             'status' => $request->session()->get('status'),
-        ]);
+        ]))->resolve($request));
     }
 
     public function register(): Response
@@ -26,24 +30,24 @@ class AuthViewController extends Controller
 
     public function forgotPassword(Request $request): Response
     {
-        return Inertia::render('auth/ForgotPassword', [
+        return Inertia::render('auth/ForgotPassword', (new ForgotPasswordPageResource([
             'status' => $request->session()->get('status'),
-        ]);
+        ]))->resolve($request));
     }
 
     public function resetPassword(Request $request, string $token): Response
     {
-        return Inertia::render('auth/ResetPassword', [
+        return Inertia::render('auth/ResetPassword', (new ResetPasswordPageResource([
             'email' => (string) $request->input('email', ''),
             'token' => $token,
-        ]);
+        ]))->resolve($request));
     }
 
     public function verifyEmail(Request $request): Response
     {
-        return Inertia::render('auth/VerifyEmail', [
+        return Inertia::render('auth/VerifyEmail', (new VerifyEmailPageResource([
             'status' => $request->session()->get('status'),
-        ]);
+        ]))->resolve($request));
     }
 
     public function twoFactorChallenge(): Response
@@ -56,4 +60,3 @@ class AuthViewController extends Controller
         return Inertia::render('auth/ConfirmPassword');
     }
 }
-

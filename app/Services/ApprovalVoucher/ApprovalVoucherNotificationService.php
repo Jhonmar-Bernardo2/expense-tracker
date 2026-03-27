@@ -2,14 +2,17 @@
 
 namespace App\Services\ApprovalVoucher;
 
-use App\Enums\ApprovalVoucherModule;
-use App\Enums\UserRole;
 use App\Models\ApprovalVoucher;
 use App\Models\User;
 use App\Notifications\ApprovalVoucherAlertNotification;
+use App\Repositories\UserRepository;
 
 class ApprovalVoucherNotificationService
 {
+    public function __construct(
+        private readonly UserRepository $userRepository,
+    ) {}
+
     public function notifyApproversOfSubmission(ApprovalVoucher $approvalVoucher): void
     {
         $title = 'Approval request submitted';
@@ -19,12 +22,13 @@ class ApprovalVoucherNotificationService
             $approvalVoucher->resolveSubject(),
         );
 
-        $this->submissionApproverQuery($approvalVoucher)
+        $this->userRepository
+            ->getActiveApproversForSubmission($approvalVoucher)
             ->each(function (User $approver) use ($approvalVoucher, $title, $body): void {
                 $approver->notify(new ApprovalVoucherAlertNotification(
                     $title,
                     $body,
-                    route('approval-vouchers.show', $approvalVoucher, false),
+                    route('app.approval-vouchers.show', $approvalVoucher, false),
                     [
                         'approval_voucher_id' => $approvalVoucher->id,
                         'status' => $approvalVoucher->status->value,
@@ -48,7 +52,7 @@ class ApprovalVoucherNotificationService
                 $approvalVoucher->voucher_no,
                 $approvalVoucher->resolveSubject(),
             ),
-            route('approval-vouchers.show', $approvalVoucher, false),
+            route('app.approval-vouchers.show', $approvalVoucher, false),
             [
                 'approval_voucher_id' => $approvalVoucher->id,
                 'status' => $approvalVoucher->status->value,
@@ -71,31 +75,12 @@ class ApprovalVoucherNotificationService
                 $approvalVoucher->voucher_no,
                 $approvalVoucher->resolveSubject(),
             ),
-            route('approval-vouchers.show', $approvalVoucher, false),
+            route('app.approval-vouchers.show', $approvalVoucher, false),
             [
                 'approval_voucher_id' => $approvalVoucher->id,
                 'status' => $approvalVoucher->status->value,
                 'rejection_reason' => $approvalVoucher->rejection_reason,
             ],
         ));
-    }
-
-    /**
-     * @return \Illuminate\Database\Eloquent\Builder<User>
-     */
-    private function submissionApproverQuery(ApprovalVoucher $approvalVoucher)
-    {
-        return User::query()
-            ->where('is_active', true)
-            ->when(
-                in_array($approvalVoucher->module, [ApprovalVoucherModule::Allocation, ApprovalVoucherModule::Budget], true),
-                fn ($query) => $query->where('role', UserRole::Admin->value),
-                fn ($query) => $query
-                    ->where('role', '!=', UserRole::Admin->value)
-                    ->whereHas(
-                        'department',
-                        fn ($departmentQuery) => $departmentQuery->where('is_financial_management', true),
-                    ),
-            );
     }
 }

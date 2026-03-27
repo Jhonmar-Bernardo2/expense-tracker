@@ -4,6 +4,8 @@ namespace App\Services\Department;
 
 use App\Models\Budget;
 use App\Models\Department;
+use App\Repositories\BudgetRepository;
+use App\Repositories\DepartmentRepository;
 use Illuminate\Database\Eloquent\Collection;
 
 class FinancialManagementDepartmentService
@@ -12,52 +14,38 @@ class FinancialManagementDepartmentService
 
     public const DEPARTMENT_DESCRIPTION = 'Central budget department.';
 
+    public function __construct(
+        private readonly DepartmentRepository $departmentRepository,
+        private readonly BudgetRepository $budgetRepository,
+    ) {}
+
     public function getOrCreate(): Department
     {
-        $department = Department::query()
-            ->where('is_financial_management', true)
-            ->orderBy('id')
-            ->first();
+        $department = $this->departmentRepository->findFinancialManagement();
 
         if ($department === null) {
-            $department = Department::query()
-                ->whereRaw('LOWER(name) = ?', [strtolower(self::DEPARTMENT_NAME)])
-                ->orderBy('id')
-                ->first();
+            $department = $this->departmentRepository->findByNormalizedName(self::DEPARTMENT_NAME);
         }
 
         if ($department === null) {
-            $department = Department::query()->create([
-                'name' => self::DEPARTMENT_NAME,
-                'description' => self::DEPARTMENT_DESCRIPTION,
-                'is_financial_management' => true,
-                'is_locked' => true,
-            ]);
+            $department = $this->departmentRepository->createFinancialManagement(
+                self::DEPARTMENT_NAME,
+                self::DEPARTMENT_DESCRIPTION,
+            );
         }
 
-        Department::query()
-            ->whereKeyNot($department->id)
-            ->where('is_financial_management', true)
-            ->update([
-                'is_financial_management' => false,
-                'is_locked' => false,
-            ]);
+        $this->departmentRepository->clearFinancialManagementFlagsExcept($department->id);
 
-        $department->forceFill([
-            'name' => self::DEPARTMENT_NAME,
-            'description' => $department->description ?: self::DEPARTMENT_DESCRIPTION,
-            'is_financial_management' => true,
-            'is_locked' => true,
-        ])->save();
-
-        return $department->refresh();
+        return $this->departmentRepository->lockAsFinancialManagement(
+            $department,
+            self::DEPARTMENT_NAME,
+            self::DEPARTMENT_DESCRIPTION,
+        );
     }
 
     public function getOrFail(): Department
     {
-        return Department::query()
-            ->where('is_financial_management', true)
-            ->firstOrFail();
+        return $this->departmentRepository->findFinancialManagementOrFail();
     }
 
     public function bootstrapCentralBudgetWorkflow(): Department
@@ -71,39 +59,29 @@ class FinancialManagementDepartmentService
 
     public function mergeActiveBudgetsIntoCentralDepartment(Department $department): void
     {
-        $groups = Budget::query()
-            ->active()
-            ->select(['category_id', 'month', 'year'])
-            ->groupBy('category_id', 'month', 'year')
-            ->get();
+        $groups = $this->budgetRepository->getActiveMergeGroups();
 
         $archivedAt = now();
 
         foreach ($groups as $group) {
             /** @var Collection<int, Budget> $budgets */
-            $budgets = Budget::query()
-                ->active()
-                ->where('category_id', $group->category_id)
-                ->where('month', $group->month)
-                ->where('year', $group->year)
-                ->orderByRaw(
-                    sprintf(
-                        'CASE WHEN department_id = %d THEN 0 ELSE 1 END',
-                        $department->id,
-                    )
-                )
-                ->orderBy('id')
-                ->get();
+            $budgets = $this->budgetRepository->getActiveMergeCandidates(
+                $department->id,
+                (int) $group->category_id,
+                (int) $group->month,
+                (int) $group->year,
+            );
 
             if ($budgets->isEmpty()) {
                 continue;
             }
 
             $keeper = $budgets->first();
-            $keeper->update([
-                'department_id' => $department->id,
-                'amount_limit' => round($budgets->sum(fn (Budget $budget) => (float) $budget->amount_limit), 2),
-            ]);
+            $this->budgetRepository->reassignBudgetToDepartment(
+                $keeper,
+                $department->id,
+                round($budgets->sum(fn (Budget $budget) => (float) $budget->amount_limit), 2),
+            );
 
             $duplicateIds = $budgets
                 ->slice(1)
@@ -114,13 +92,7 @@ class FinancialManagementDepartmentService
                 continue;
             }
 
-            Budget::query()
-                ->whereKey($duplicateIds)
-                ->update([
-                    'archived_at' => $archivedAt,
-                    'archived_by_approval_voucher_id' => null,
-                    'updated_at' => $archivedAt,
-                ]);
+            $this->budgetRepository->archiveByIds($duplicateIds, $archivedAt);
         }
     }
 }

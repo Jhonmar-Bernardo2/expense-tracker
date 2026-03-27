@@ -5,7 +5,7 @@ import { computed } from 'vue';
 import Breadcrumbs from '@/components/Breadcrumbs.vue';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
-import { index as notificationsIndex } from '@/routes/notifications';
+import { index as notificationsIndex } from '@/routes/app/notifications';
 import type { BreadcrumbItem } from '@/types';
 import type { NotificationsShared } from '@/types/notifications';
 

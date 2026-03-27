@@ -42,10 +42,16 @@ export type BudgetAllocation = {
 
 export type BudgetAllocationSummary = {
     approved_allocation: number;
+    total_approved_budget: number;
     total_budgeted: number;
     total_allocated: number;
+    total_allocated_budget: number;
     total_unallocated: number;
+    remaining_budget: number;
     total_spent: number;
     total_remaining: number;
+    remaining_after_spending: number;
     categories_over_budget: number;
+    can_allocate_category_budgets: boolean;
+    allocation_block_message: string | null;
 };

@@ -28,20 +28,20 @@ class DepartmentTest extends TestCase
     {
         $department = Department::factory()->create();
 
-        $this->get(route('departments.index'))
+        $this->get(route('admin.departments.index'))
             ->assertRedirect(route('login'));
 
-        $this->post(route('departments.store'), [
+        $this->post(route('admin.departments.store'), [
             'name' => 'Finance',
             'description' => 'Handles spending controls.',
         ])->assertRedirect(route('login'));
 
-        $this->put(route('departments.update', $department), [
+        $this->put(route('admin.departments.update', $department), [
             'name' => 'Finance',
             'description' => 'Updated',
         ])->assertRedirect(route('login'));
 
-        $this->delete(route('departments.destroy', $department))
+        $this->delete(route('admin.departments.destroy', $department))
             ->assertRedirect(route('login'));
     }
 
@@ -55,23 +55,23 @@ class DepartmentTest extends TestCase
         $otherDepartment = Department::factory()->create();
 
         $this->actingAs($staff)
-            ->get(route('departments.index'))
+            ->get(route('admin.departments.index'))
             ->assertForbidden();
 
         $this->actingAs($staff)
-            ->post(route('departments.store'), [
+            ->post(route('admin.departments.store'), [
                 'name' => 'Operations',
                 'description' => null,
             ])->assertForbidden();
 
         $this->actingAs($staff)
-            ->put(route('departments.update', $otherDepartment), [
+            ->put(route('admin.departments.update', $otherDepartment), [
                 'name' => 'Operations',
                 'description' => null,
             ])->assertForbidden();
 
         $this->actingAs($staff)
-            ->delete(route('departments.destroy', $otherDepartment))
+            ->delete(route('admin.departments.destroy', $otherDepartment))
             ->assertForbidden();
     }
 
@@ -91,10 +91,10 @@ class DepartmentTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->get(route('departments.index'))
+            ->get(route('admin.departments.index'))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('Departments/Index')
+                ->component('admin/Departments/Index')
                 ->has('departments', 3)
                 ->where('departments.0.name', 'Finance')
                 ->where('departments.0.description', 'Controls expenses.')
@@ -113,7 +113,7 @@ class DepartmentTest extends TestCase
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
-            ->post(route('departments.store'), [
+            ->post(route('admin.departments.store'), [
                 'name' => '  Finance   Team  ',
                 'description' => '  Handles   approvals  ',
             ])
@@ -133,12 +133,12 @@ class DepartmentTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->from(route('departments.index'))
-            ->post(route('departments.store'), [
+            ->from(route('admin.departments.index'))
+            ->post(route('admin.departments.store'), [
                 'name' => 'Finance',
                 'description' => null,
             ])
-            ->assertRedirect(route('departments.index'))
+            ->assertRedirect(route('admin.departments.index'))
             ->assertSessionHasErrors('name');
     }
 
@@ -151,7 +151,7 @@ class DepartmentTest extends TestCase
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
-            ->put(route('departments.update', $department), [
+            ->put(route('admin.departments.update', $department), [
                 'name' => '  Operations Team ',
                 'description' => ' Daily coordination ',
             ])
@@ -170,18 +170,18 @@ class DepartmentTest extends TestCase
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
-            ->from(route('departments.index'))
-            ->put(route('departments.update', $financialManagementDepartment), [
+            ->from(route('admin.departments.index'))
+            ->put(route('admin.departments.update', $financialManagementDepartment), [
                 'name' => 'Renamed Financial Management',
                 'description' => 'Updated',
             ])
-            ->assertRedirect(route('departments.index'))
+            ->assertRedirect(route('admin.departments.index'))
             ->assertSessionHas('error', 'The Finance Team department is protected and cannot be changed.');
 
         $this->actingAs($admin)
-            ->from(route('departments.index'))
-            ->delete(route('departments.destroy', $financialManagementDepartment))
-            ->assertRedirect(route('departments.index'))
+            ->from(route('admin.departments.index'))
+            ->delete(route('admin.departments.destroy', $financialManagementDepartment))
+            ->assertRedirect(route('admin.departments.index'))
             ->assertSessionHas('error', 'The Finance Team department is protected and cannot be deleted.');
 
         $this->assertDatabaseHas('departments', [
@@ -202,9 +202,9 @@ class DepartmentTest extends TestCase
         ]);
 
         $this->actingAs($admin)
-            ->from(route('departments.index'))
-            ->delete(route('departments.destroy', $department))
-            ->assertRedirect(route('departments.index'))
+            ->from(route('admin.departments.index'))
+            ->delete(route('admin.departments.destroy', $department))
+            ->assertRedirect(route('admin.departments.index'))
             ->assertSessionHas('error', 'This department cannot be deleted because it still has assigned users or financial records.');
 
         $this->assertDatabaseHas('departments', [
@@ -218,7 +218,7 @@ class DepartmentTest extends TestCase
         $admin = $this->createAdmin();
 
         $this->actingAs($admin)
-            ->delete(route('departments.destroy', $department))
+            ->delete(route('admin.departments.destroy', $department))
             ->assertRedirect();
 
         $this->assertDatabaseMissing('departments', [

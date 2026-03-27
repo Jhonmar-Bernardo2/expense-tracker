@@ -24,10 +24,10 @@ class ApprovalVoucherPrintTest extends TestCase
         ]);
 
         $this->actingAs($requester)
-            ->get(route('approval-vouchers.print', $voucher))
+            ->get(route('app.approval-vouchers.print', $voucher))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('ApprovalVouchers/Print')
+                ->component('app/ApprovalVouchers/Print')
                 ->where('approval_voucher.id', $voucher->id)
                 ->where('approval_voucher.status', 'approved')
                 ->where('approval_voucher.remarks', 'Approved by finance.')
@@ -45,7 +45,7 @@ class ApprovalVoucherPrintTest extends TestCase
         $otherStaff = User::factory()->create(['department_id' => $otherDepartment->id]);
 
         $this->actingAs($otherStaff)
-            ->get(route('approval-vouchers.print', $voucher))
+            ->get(route('app.approval-vouchers.print', $voucher))
             ->assertNotFound();
     }
 
@@ -76,7 +76,7 @@ class ApprovalVoucherPrintTest extends TestCase
         ]);
 
         $this->actingAs($requester)
-            ->get(route('approval-vouchers.print', $createVoucher))
+            ->get(route('app.approval-vouchers.print', $createVoucher))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('approval_voucher.before_payload', null)
@@ -84,7 +84,7 @@ class ApprovalVoucherPrintTest extends TestCase
             );
 
         $this->actingAs($deleteRequester)
-            ->get(route('approval-vouchers.print', $deleteVoucher))
+            ->get(route('app.approval-vouchers.print', $deleteVoucher))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('approval_voucher.before_payload.title', 'Old reimbursement')
@@ -101,7 +101,7 @@ class ApprovalVoucherPrintTest extends TestCase
         ]);
 
         $this->actingAs($requester)
-            ->get(route('approval-vouchers.print', $voucher))
+            ->get(route('app.approval-vouchers.print', $voucher))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->where('approval_voucher.status', 'rejected')

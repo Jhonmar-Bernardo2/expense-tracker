@@ -1,20 +1,21 @@
 <?php
 
+use App\Http\Controllers\Admin\CategoryController;
+use App\Http\Controllers\Admin\DepartmentController;
+use App\Http\Controllers\Admin\UserController;
+use App\Http\Controllers\App\ApprovalVoucherAttachmentController;
+use App\Http\Controllers\App\ApprovalVoucherController;
+use App\Http\Controllers\App\DashboardController;
+use App\Http\Controllers\App\NotificationController;
+use App\Http\Controllers\App\ReportsController;
+use App\Http\Controllers\App\TransactionController;
 use App\Http\Controllers\Auth\AuthViewController;
-use App\Http\Controllers\ApprovalVoucherAttachmentController;
-use App\Http\Controllers\ApprovalVoucherController;
-use App\Http\Controllers\BudgetController;
-use App\Http\Controllers\CategoryController;
-use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\DepartmentController;
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\ReportsController;
-use App\Http\Controllers\TransactionController;
-use App\Http\Controllers\UserController;
+use App\Http\Controllers\Finance\BudgetController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
 Route::inertia('/', 'Welcome')->name('home');
+Route::redirect('/dashboard', '/app/dashboard');
 
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthViewController::class, 'login'])->name('login');
@@ -38,52 +39,56 @@ Route::middleware(['auth', 'active'])->group(function () {
 
     Route::get('/confirm-password', [AuthViewController::class, 'confirmPassword'])->name('password.confirm');
 
-    Route::redirect('/profile', '/settings/profile')->name('profile');
+    Route::redirect('/profile', '/settings/profile');
 });
 
 Route::middleware(['auth', 'active', 'verified'])->group(function () {
-    Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::prefix('app')->name('app.')->group(function () {
+        Route::get('dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('notifications', [NotificationController::class, 'index'])
-        ->name('notifications.index');
+        Route::prefix('notifications')->name('notifications.')->group(function () {
+            Route::get('/', [NotificationController::class, 'index'])->name('index');
+            Route::patch('read-all', [NotificationController::class, 'readAll'])->name('read-all');
+            Route::patch('{notification}/read', [NotificationController::class, 'read'])->name('read');
+        });
 
-    Route::patch('notifications/read-all', [NotificationController::class, 'readAll'])
-        ->name('notifications.read-all');
+        Route::resource('transactions', TransactionController::class)
+            ->only(['index']);
 
-    Route::patch('notifications/{notification}/read', [NotificationController::class, 'read'])
-        ->name('notifications.read');
+        Route::resource('approval-vouchers', ApprovalVoucherController::class)
+            ->parameters(['approval-vouchers' => 'approvalVoucher'])
+            ->only(['index', 'show', 'store', 'update']);
 
-    Route::resource('budgets', BudgetController::class)
-        ->only(['index', 'store', 'update', 'destroy']);
+        Route::get('approval-vouchers/{approvalVoucher}/print', [ApprovalVoucherController::class, 'print'])
+            ->name('approval-vouchers.print');
 
-    Route::resource('transactions', TransactionController::class)
-        ->only(['index']);
+        Route::get('approval-vouchers/{approvalVoucher}/download', [ApprovalVoucherController::class, 'download'])
+            ->name('approval-vouchers.download');
 
-    Route::resource('approval-vouchers', ApprovalVoucherController::class)
-        ->parameters(['approval-vouchers' => 'approvalVoucher'])
-        ->only(['index', 'show', 'store', 'update']);
+        Route::get(
+            'approval-vouchers/{approvalVoucher}/attachments/{attachment}/download',
+            [ApprovalVoucherAttachmentController::class, 'download'],
+        )->name('approval-vouchers.attachments.download');
 
-    Route::get('approval-vouchers/{approvalVoucher}/print', [ApprovalVoucherController::class, 'print'])
-        ->name('approval-vouchers.print');
+        Route::post('approval-vouchers/{approvalVoucher}/submit', [ApprovalVoucherController::class, 'submit'])
+            ->name('approval-vouchers.submit');
 
-    Route::get(
-        'approval-vouchers/{approvalVoucher}/attachments/{attachment}/download',
-        [ApprovalVoucherAttachmentController::class, 'download'],
-    )->name('approval-vouchers.attachments.download');
+        Route::patch('approval-vouchers/{approvalVoucher}/approve', [ApprovalVoucherController::class, 'approve'])
+            ->name('approval-vouchers.approve');
 
-    Route::post('approval-vouchers/{approvalVoucher}/submit', [ApprovalVoucherController::class, 'submit'])
-        ->name('approval-vouchers.submit');
+        Route::patch('approval-vouchers/{approvalVoucher}/reject', [ApprovalVoucherController::class, 'reject'])
+            ->name('approval-vouchers.reject');
 
-    Route::patch('approval-vouchers/{approvalVoucher}/approve', [ApprovalVoucherController::class, 'approve'])
-        ->name('approval-vouchers.approve');
+        Route::get('reports', [ReportsController::class, 'index'])
+            ->name('reports.index');
+    });
 
-    Route::patch('approval-vouchers/{approvalVoucher}/reject', [ApprovalVoucherController::class, 'reject'])
-        ->name('approval-vouchers.reject');
+    Route::prefix('finance')->name('finance.')->group(function () {
+        Route::resource('budgets', BudgetController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+    });
 
-    Route::get('reports', [ReportsController::class, 'index'])
-        ->name('reports.index');
-
-    Route::middleware('admin')->group(function () {
+    Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
         Route::resource('categories', CategoryController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 

@@ -10,6 +10,7 @@ use App\Models\Budget;
 use App\Models\BudgetAllocation;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Repositories\ApprovalVoucherRepository;
 use App\Repositories\BudgetAllocationRepository;
 use App\Repositories\BudgetRepository;
 use App\Repositories\TransactionRepository;
@@ -20,6 +21,7 @@ use Illuminate\Validation\ValidationException;
 class ApproveApprovalVoucherService
 {
     public function __construct(
+        private readonly ApprovalVoucherRepository $approvalVoucherRepository,
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
         private readonly TransactionRepository $transactionRepository,
         private readonly BudgetRepository $budgetRepository,
@@ -40,7 +42,19 @@ class ApproveApprovalVoucherService
             ]);
         }
 
-        return DB::transaction(function () use ($actor, $approvalVoucher, $data): ApprovalVoucher {
+        return $this->applyImmediately(
+            $actor,
+            $approvalVoucher,
+            $data['remarks'] ?? $approvalVoucher->remarks,
+        );
+    }
+
+    public function applyImmediately(
+        User $actor,
+        ApprovalVoucher $approvalVoucher,
+        ?string $remarks = null,
+    ): ApprovalVoucher {
+        return DB::transaction(function () use ($actor, $approvalVoucher, $remarks): ApprovalVoucher {
             $approvalVoucher->loadMissing('requestedBy');
 
             $target = $this->approvalVoucherPayloadService->resolveTargetForApproval($approvalVoucher);
@@ -48,22 +62,19 @@ class ApproveApprovalVoucherService
 
             $appliedTarget = $this->applyChange($approvalVoucher, $target);
 
-            $approvalVoucher->update([
-                'status' => ApprovalVoucherStatus::Approved->value,
-                'approved_by' => $actor->id,
-                'approved_at' => now(),
-                'applied_at' => now(),
-                'target_id' => $appliedTarget->id,
-                'remarks' => $data['remarks'] ?? $approvalVoucher->remarks,
-                'rejection_reason' => null,
-                'rejected_at' => null,
-            ]);
-
-            $approvalVoucher = $approvalVoucher->refresh();
+            $approvalVoucher = $this->approvalVoucherRepository->markAsApproved(
+                $approvalVoucher,
+                $actor,
+                $appliedTarget->id,
+                $remarks ?? $approvalVoucher->remarks,
+            );
 
             $this->activityLogService->logApprovalVoucherApproved($actor, $approvalVoucher);
             $this->activityLogService->logAppliedChange($actor, $approvalVoucher, $appliedTarget);
-            $this->approvalVoucherNotificationService->notifyRequesterOfApproval($approvalVoucher);
+
+            if (! $approvalVoucher->isRequestedBy($actor)) {
+                $this->approvalVoucherNotificationService->notifyRequesterOfApproval($approvalVoucher);
+            }
 
             return $approvalVoucher;
         });
@@ -153,10 +164,9 @@ class ApproveApprovalVoucherService
                 $this->requireAllocationTarget($budgetAllocation),
                 $payload,
             ),
-            ApprovalVoucherAction::Delete => $this->budgetAllocationRepository->archive(
-                $this->requireAllocationTarget($budgetAllocation),
-                $approvalVoucher->id,
-            ),
+            ApprovalVoucherAction::Delete => throw ValidationException::withMessages([
+                'approval_voucher' => 'Monthly budget removal requests are no longer supported.',
+            ]),
         };
     }
 

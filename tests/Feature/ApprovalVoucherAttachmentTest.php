@@ -30,7 +30,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
             'type' => 'expense',
         ]);
         $this->actingAs($staff)
-            ->post(route('approval-vouchers.store'), [
+            ->post(route('app.approval-vouchers.store'), [
                 'module' => 'transaction',
                 'action' => 'create',
                 'department_id' => $department->id,
@@ -68,7 +68,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
         $department = $this->financialManagementDepartment();
         $staff = User::factory()->create(['department_id' => $department->id]);
         $this->actingAs($staff)
-            ->post(route('approval-vouchers.store'), [
+            ->post(route('app.approval-vouchers.store'), [
                 'module' => 'allocation',
                 'action' => 'create',
                 'month' => 3,
@@ -117,7 +117,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
         ]);
 
         $this->actingAs($staff)
-            ->post(route('approval-vouchers.store'), [
+            ->post(route('app.approval-vouchers.store'), [
                 'module' => 'transaction',
                 'action' => 'delete',
                 'target_id' => $transaction->id,
@@ -150,7 +150,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
         ]);
 
         $this->actingAs($requester)
-            ->post(route('approval-vouchers.update', $approvalVoucher), [
+            ->post(route('app.approval-vouchers.update', $approvalVoucher), [
                 '_method' => 'put',
                 'module' => 'transaction',
                 'action' => 'create',
@@ -192,8 +192,8 @@ class ApprovalVoucherAttachmentTest extends TestCase
         ]);
 
         $this->actingAs($requester)
-            ->from(route('approval-vouchers.show', $approvalVoucher))
-            ->post(route('approval-vouchers.update', $approvalVoucher), [
+            ->from(route('app.approval-vouchers.show', $approvalVoucher))
+            ->post(route('app.approval-vouchers.update', $approvalVoucher), [
                 '_method' => 'put',
                 'module' => 'transaction',
                 'action' => 'create',
@@ -210,7 +210,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
                     UploadedFile::fake()->create('should-not-save.pdf', 120, 'application/pdf'),
                 ],
             ])
-            ->assertRedirect(route('approval-vouchers.show', $approvalVoucher))
+            ->assertRedirect(route('app.approval-vouchers.show', $approvalVoucher))
             ->assertSessionHasErrors('approval_voucher');
 
         $this->assertSame(2, ApprovalVoucherAttachment::query()->count());
@@ -229,7 +229,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
         $otherStaff = User::factory()->create();
 
         $this->actingAs($requester)
-            ->get(route('approval-vouchers.attachments.download', [
+            ->get(route('app.approval-vouchers.attachments.download', [
                 'approvalVoucher' => $approvalVoucher,
                 'attachment' => $attachment,
             ]))
@@ -237,7 +237,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
             ->assertDownload('receipt.pdf');
 
         $this->actingAs($admin)
-            ->get(route('approval-vouchers.attachments.download', [
+            ->get(route('app.approval-vouchers.attachments.download', [
                 'approvalVoucher' => $approvalVoucher,
                 'attachment' => $attachment,
             ]))
@@ -245,7 +245,7 @@ class ApprovalVoucherAttachmentTest extends TestCase
             ->assertDownload('receipt.pdf');
 
         $this->actingAs($otherStaff)
-            ->get(route('approval-vouchers.attachments.download', [
+            ->get(route('app.approval-vouchers.attachments.download', [
                 'approvalVoucher' => $approvalVoucher,
                 'attachment' => $attachment,
             ]))
@@ -258,26 +258,26 @@ class ApprovalVoucherAttachmentTest extends TestCase
 
         [$approvalVoucher, $requester, $attachment] = $this->makeVoucherWithAttachment();
 
-        $downloadUrl = route('approval-vouchers.attachments.download', [
+        $downloadUrl = route('app.approval-vouchers.attachments.download', [
             'approvalVoucher' => $approvalVoucher,
             'attachment' => $attachment,
         ]);
 
         $this->actingAs($requester)
-            ->get(route('approval-vouchers.show', $approvalVoucher))
+            ->get(route('app.approval-vouchers.show', $approvalVoucher))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('ApprovalVouchers/Show')
+                ->component('app/ApprovalVouchers/Show')
                 ->where('approval_voucher.attachments.0.name', 'receipt.pdf')
                 ->where('approval_voucher.attachments.0.size_bytes', 512)
                 ->where('approval_voucher.attachments.0.download_url', $downloadUrl)
             );
 
         $this->actingAs($requester)
-            ->get(route('approval-vouchers.print', $approvalVoucher))
+            ->get(route('app.approval-vouchers.print', $approvalVoucher))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
-                ->component('ApprovalVouchers/Print')
+                ->component('app/ApprovalVouchers/Print')
                 ->where('approval_voucher.attachments.0.name', 'receipt.pdf')
                 ->where('approval_voucher.attachments.0.mime_type', 'application/pdf')
             );

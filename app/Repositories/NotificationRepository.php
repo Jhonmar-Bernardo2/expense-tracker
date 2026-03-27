@@ -8,6 +8,11 @@ use Illuminate\Notifications\DatabaseNotification;
 
 class NotificationRepository
 {
+    public function countUnread(User $user): int
+    {
+        return $user->unreadNotifications()->count();
+    }
+
     public function getForIndex(User $user, int $perPage = 15): LengthAwarePaginator
     {
         return $user->notifications()
