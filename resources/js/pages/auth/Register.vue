@@ -19,7 +19,7 @@ const registerForm = {
 <template>
     <AuthBase
         title="Create an account"
-        description="Enter your details below to create your account"
+        description="Enter your details to create your account"
     >
         <Head title="Register" />
 

@@ -32,7 +32,7 @@ const { isCurrentOrParentUrl } = useCurrentUrl();
     <div class="px-4 py-6">
         <Heading
             title="Settings"
-            description="Manage your profile and account settings"
+            description="Update your profile, password, and display settings"
         />
 
         <div class="flex flex-col lg:flex-row lg:space-x-12">

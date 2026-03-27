@@ -25,8 +25,7 @@ class BudgetController extends Controller
         private readonly CategoryRepository $categoryRepository,
         private readonly BudgetAccessService $budgetAccessService,
         private readonly FinancialManagementDepartmentService $financialManagementDepartmentService,
-    ) {
-    }
+    ) {}
 
     public function index(IndexBudgetRequest $request): Response
     {
@@ -115,7 +114,7 @@ class BudgetController extends Controller
             $request->validated(),
         );
 
-        return back()->with('success', 'Category budget created.');
+        return back()->with('success', 'Category budget added.');
     }
 
     public function update(UpsertBudgetRequest $request, int $budget): RedirectResponse

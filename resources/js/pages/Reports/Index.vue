@@ -40,6 +40,10 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
+import {
+    displayDepartmentName,
+    MONTHLY_BUDGET_LABEL,
+} from '@/lib/plain-language';
 import { dashboard } from '@/routes';
 import { index } from '@/routes/reports';
 import type {
@@ -114,8 +118,7 @@ const canSelectDepartment = computed(
 const departmentLabel = computed(() =>
     props.department_scope.is_all_departments
         ? 'All departments'
-        : (props.department_scope.selected_department?.name ??
-          'Assigned department'),
+        : displayDepartmentName(props.department_scope.selected_department),
 );
 const budgetAccess = computed(
     () => page.props.budget_access as BudgetAccessShared,
@@ -144,7 +147,10 @@ const summaryMetrics = computed(() => [
         value: formatCurrency(props.summary.monthly.balance),
         helper: 'Income minus expenses for the selected month.',
         icon: Wallet,
-        tone: props.summary.monthly.balance < 0 ? ('danger' as const) : ('info' as const),
+        tone:
+            props.summary.monthly.balance < 0
+                ? ('danger' as const)
+                : ('info' as const),
     },
     {
         id: 'reports-yearly-balance',
@@ -152,7 +158,10 @@ const summaryMetrics = computed(() => [
         value: formatCurrency(props.summary.yearly.balance),
         helper: `Rolling total for ${selectedYear.value}.`,
         icon: BarChart3,
-        tone: props.summary.yearly.balance < 0 ? ('danger' as const) : ('info' as const),
+        tone:
+            props.summary.yearly.balance < 0
+                ? ('danger' as const)
+                : ('info' as const),
     },
 ]);
 
@@ -164,21 +173,21 @@ const centralBudgetMetrics = computed(() => {
     return [
         {
             id: 'reports-budget-approved',
-            label: 'Approved allocation',
+            label: 'Approved monthly budget',
             value: formatCurrency(
                 props.budget_summary.current_month_summary.approved_allocation,
             ),
-            helper: 'Approved monthly total for central finance.',
+            helper: 'Approved monthly budget for the Finance Team.',
             icon: Wallet,
             tone: 'info' as const,
         },
         {
             id: 'reports-budget-allocated',
-            label: 'Allocated to categories',
+            label: 'Budget set for categories',
             value: formatCurrency(
                 props.budget_summary.current_month_summary.total_allocated,
             ),
-            helper: 'Amount already assigned to category budgets.',
+            helper: 'Amount already set aside for categories.',
             icon: TrendingUp,
             tone: 'info' as const,
         },
@@ -188,17 +197,17 @@ const centralBudgetMetrics = computed(() => {
             value: formatCurrency(
                 props.budget_summary.current_month_summary.total_spent,
             ),
-            helper: 'Approved expense transactions for the period.',
+            helper: 'Approved spending for this period.',
             icon: TrendingDown,
             tone: 'warning' as const,
         },
         {
             id: 'reports-budget-remaining',
-            label: 'Remaining',
+            label: 'Budget left',
             value: formatCurrency(
                 props.budget_summary.current_month_summary.total_remaining,
             ),
-            helper: 'Approved allocation minus actual spending.',
+            helper: 'Approved monthly budget minus spending.',
             icon: Wallet,
             tone:
                 props.budget_summary.current_month_summary.total_remaining < 0
@@ -267,14 +276,14 @@ const spendingLabels = computed(() =>
 
 const budgetSeries = computed(() => [
     {
-        name: 'Allocation',
+        name: MONTHLY_BUDGET_LABEL,
         values: props.breakdowns.budget_vs_actual.map(
             (budget) => budget.amount_limit,
         ),
         color: '#2563eb',
     },
     {
-        name: 'Actual',
+        name: 'Spent',
         values: props.breakdowns.budget_vs_actual.map(
             (budget) => budget.amount_spent,
         ),
@@ -319,7 +328,7 @@ const applyFilters = () => {
                             Reports
                         </CardTitle>
                         <CardDescription
-                            >Compare department performance for
+                            >Compare department spending for
                             {{ monthTitle }}.</CardDescription
                         >
                     </div>
@@ -345,7 +354,12 @@ const applyFilters = () => {
                                         :key="department.id"
                                         :value="department.id"
                                     >
-                                        {{ department.name }}
+                                        {{
+                                            displayDepartmentName(
+                                                department,
+                                                department.name,
+                                            )
+                                        }}
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
@@ -405,7 +419,7 @@ const applyFilters = () => {
                 <CardContent>
                     <ResponsiveActionGroup align="end">
                         <Button variant="outline" @click="applyFilters">
-                            Apply Filters
+                            Show results
                         </Button>
                     </ResponsiveActionGroup>
                 </CardContent>
@@ -487,10 +501,10 @@ const applyFilters = () => {
                     class="border-sidebar-border/70 shadow-sm"
                 >
                     <CardHeader>
-                        <CardTitle>Budget vs Actual</CardTitle>
+                        <CardTitle>Budget vs Spending</CardTitle>
                         <CardDescription
-                            >{{ budget_summary.scope_label }}
-                            comparison across the organization.</CardDescription
+                            >{{ budget_summary.scope_label }} comparison across
+                            the organization.</CardDescription
                         >
                     </CardHeader>
                     <CardContent>
@@ -510,7 +524,7 @@ const applyFilters = () => {
                             v-if="breakdowns.budget_vs_actual.length === 0"
                             class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
                         >
-                            No budgets found for the selected period.
+                            No budget data for this period.
                         </div>
                         <BarChart
                             v-else
@@ -528,7 +542,7 @@ const applyFilters = () => {
                 class="border-sidebar-border/70 shadow-sm"
             >
                 <CardHeader>
-                    <CardTitle>Budget Analysis</CardTitle>
+                    <CardTitle>Budget details</CardTitle>
                     <CardDescription
                         >{{ budget_summary.scope_label }} rows for
                         {{ monthTitle }}</CardDescription
@@ -539,7 +553,7 @@ const applyFilters = () => {
                         v-if="breakdowns.budget_vs_actual.length === 0"
                         class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
                     >
-                        No budgets found for the selected period.
+                        No budget data for this period.
                     </div>
 
                     <div v-else class="overflow-hidden rounded-lg border">
@@ -548,10 +562,10 @@ const applyFilters = () => {
                                 <TableRow>
                                     <TableHead>Category</TableHead>
                                     <TableHead class="text-right"
-                                        >Allocation</TableHead
+                                        >Monthly budget</TableHead
                                     >
                                     <TableHead class="text-right"
-                                        >Actual</TableHead
+                                        >Spent</TableHead
                                     >
                                     <TableHead class="text-right"
                                         >Remaining</TableHead
@@ -569,19 +583,21 @@ const applyFilters = () => {
                                     <TableCell
                                         class="text-right tabular-nums"
                                         >{{
-                                            budget.amount_limit.toFixed(2)
+                                            formatCurrency(budget.amount_limit)
                                         }}</TableCell
                                     >
                                     <TableCell
                                         class="text-right tabular-nums"
                                         >{{
-                                            budget.amount_spent.toFixed(2)
+                                            formatCurrency(budget.amount_spent)
                                         }}</TableCell
                                     >
                                     <TableCell
                                         class="text-right tabular-nums"
                                         >{{
-                                            budget.amount_remaining.toFixed(2)
+                                            formatCurrency(
+                                                budget.amount_remaining,
+                                            )
                                         }}</TableCell
                                     >
                                 </TableRow>

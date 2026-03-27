@@ -176,13 +176,13 @@ class DepartmentTest extends TestCase
                 'description' => 'Updated',
             ])
             ->assertRedirect(route('departments.index'))
-            ->assertSessionHas('error', 'The Financial Management department is protected and cannot be modified.');
+            ->assertSessionHas('error', 'The Finance Team department is protected and cannot be changed.');
 
         $this->actingAs($admin)
             ->from(route('departments.index'))
             ->delete(route('departments.destroy', $financialManagementDepartment))
             ->assertRedirect(route('departments.index'))
-            ->assertSessionHas('error', 'The Financial Management department is protected and cannot be deleted.');
+            ->assertSessionHas('error', 'The Finance Team department is protected and cannot be deleted.');
 
         $this->assertDatabaseHas('departments', [
             'id' => $financialManagementDepartment->id,

@@ -16,8 +16,7 @@ class DepartmentController extends Controller
 {
     public function __construct(
         private readonly DepartmentRepository $departmentRepository,
-    ) {
-    }
+    ) {}
 
     public function index(): Response
     {
@@ -34,7 +33,7 @@ class DepartmentController extends Controller
     ): RedirectResponse {
         $storeDepartmentService->handle($request->validated());
 
-        return back()->with('success', 'Department created.');
+        return back()->with('success', 'Department added.');
     }
 
     public function update(
@@ -45,7 +44,7 @@ class DepartmentController extends Controller
         $existingDepartment = $this->departmentRepository->findOrFail($department);
 
         if ($existingDepartment->isLocked()) {
-            return back()->with('error', 'The Financial Management department is protected and cannot be modified.');
+            return back()->with('error', 'The Finance Team department is protected and cannot be changed.');
         }
 
         $updateDepartmentService->handle($existingDepartment, $request->validated());
@@ -58,7 +57,7 @@ class DepartmentController extends Controller
         $existingDepartment = $this->departmentRepository->findOrFail($department);
 
         if ($existingDepartment->isLocked()) {
-            return back()->with('error', 'The Financial Management department is protected and cannot be deleted.');
+            return back()->with('error', 'The Finance Team department is protected and cannot be deleted.');
         }
 
         if ($this->departmentRepository->hasUsers($existingDepartment)) {

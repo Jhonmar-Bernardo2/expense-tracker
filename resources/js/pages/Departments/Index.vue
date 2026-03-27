@@ -25,6 +25,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { displayDepartmentName } from '@/lib/plain-language';
 import { dashboard } from '@/routes';
 import { destroy, index, store, update } from '@/routes/departments';
 import type { BreadcrumbItem, Department } from '@/types';
@@ -59,8 +60,8 @@ const dialogTitle = computed(() =>
 
 const dialogDescription = computed(() =>
     editingDepartment.value
-        ? 'Update the department details used for account grouping.'
-        : 'Create a department for organizing user accounts.',
+        ? 'Update this department.'
+        : 'Add a department for grouping users.',
 );
 
 const submitLabel = computed(() =>
@@ -143,8 +144,7 @@ const deleteDepartment = (department: Department) => {
                             Departments
                         </CardTitle>
                         <CardDescription>
-                            Group accounts by department without changing
-                            business-data visibility.
+                            Organize users by department.
                         </CardDescription>
                     </div>
 
@@ -248,11 +248,22 @@ const deleteDepartment = (department: Department) => {
                                 :key="`department-card-${department.id}`"
                                 class="rounded-xl border p-4 shadow-sm"
                             >
-                                <div class="flex items-start justify-between gap-3">
+                                <div
+                                    class="flex items-start justify-between gap-3"
+                                >
                                     <div class="min-w-0">
-                                        <div class="flex flex-wrap items-center gap-2">
-                                            <div class="font-medium text-foreground">
-                                                {{ department.name }}
+                                        <div
+                                            class="flex flex-wrap items-center gap-2"
+                                        >
+                                            <div
+                                                class="font-medium text-foreground"
+                                            >
+                                                {{
+                                                    displayDepartmentName(
+                                                        department,
+                                                        department.name,
+                                                    )
+                                                }}
                                             </div>
                                             <span
                                                 v-if="department.is_locked"
@@ -261,7 +272,9 @@ const deleteDepartment = (department: Department) => {
                                                 Protected
                                             </span>
                                         </div>
-                                        <div class="mt-2 text-sm text-muted-foreground">
+                                        <div
+                                            class="mt-2 text-sm text-muted-foreground"
+                                        >
                                             {{
                                                 department.description ||
                                                 'No description'
@@ -272,7 +285,9 @@ const deleteDepartment = (department: Department) => {
 
                                 <div class="mt-4 grid gap-3 sm:grid-cols-2">
                                     <div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Assigned users
                                         </div>
                                         <div class="mt-1 font-medium">
@@ -280,10 +295,14 @@ const deleteDepartment = (department: Department) => {
                                         </div>
                                     </div>
                                     <div v-if="department.is_locked">
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Note
                                         </div>
-                                        <div class="mt-1 text-sm text-muted-foreground">
+                                        <div
+                                            class="mt-1 text-sm text-muted-foreground"
+                                        >
                                             Central budget department
                                         </div>
                                     </div>
@@ -323,124 +342,137 @@ const deleteDepartment = (department: Department) => {
                             </div>
                         </div>
 
-                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                        <div
+                            class="hidden overflow-hidden rounded-lg border md:block"
+                        >
                             <div class="overflow-x-auto">
-                            <table
-                                class="min-w-full divide-y divide-border text-sm"
-                            >
-                                <thead
-                                    class="bg-muted/50 text-left text-muted-foreground"
+                                <table
+                                    class="min-w-full divide-y divide-border text-sm"
                                 >
-                                    <tr>
-                                        <th class="px-4 py-3 font-medium">
-                                            Name
-                                        </th>
-                                        <th class="px-4 py-3 font-medium">
-                                            Description
-                                        </th>
-                                        <th class="px-4 py-3 font-medium">
-                                            Assigned users
-                                        </th>
-                                        <th
-                                            class="px-4 py-3 text-right font-medium"
-                                        >
-                                            Actions
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody
-                                    class="divide-y divide-border bg-background"
-                                >
-                                    <tr
-                                        v-for="department in departments"
-                                        :key="department.id"
+                                    <thead
+                                        class="bg-muted/50 text-left text-muted-foreground"
                                     >
-                                        <td
-                                            class="px-4 py-3 font-medium text-foreground"
-                                        >
-                                            <div class="flex items-center gap-2">
-                                                <span>{{ department.name }}</span>
-                                                <span
-                                                    v-if="department.is_locked"
-                                                    class="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
-                                                >
-                                                    Protected
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td
-                                            class="px-4 py-3 text-muted-foreground"
-                                        >
-                                            {{
-                                                department.description ||
-                                                'No description'
-                                            }}
-                                        </td>
-                                        <td
-                                            class="px-4 py-3 text-muted-foreground"
-                                        >
-                                            {{ department.user_count }}
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <ResponsiveActionGroup
-                                                align="end"
-                                                :full-width-on-mobile="false"
+                                        <tr>
+                                            <th class="px-4 py-3 font-medium">
+                                                Name
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Description
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Assigned users
+                                            </th>
+                                            <th
+                                                class="px-4 py-3 text-right font-medium"
                                             >
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    :disabled="
-                                                        department.is_locked
-                                                    "
-                                                    @click="
-                                                        openEditDialog(
-                                                            department,
-                                                        )
-                                                    "
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody
+                                        class="divide-y divide-border bg-background"
+                                    >
+                                        <tr
+                                            v-for="department in departments"
+                                            :key="department.id"
+                                        >
+                                            <td
+                                                class="px-4 py-3 font-medium text-foreground"
+                                            >
+                                                <div
+                                                    class="flex items-center gap-2"
                                                 >
-                                                    <Pencil
-                                                        class="mr-2 size-4"
-                                                    />
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    :disabled="
-                                                        department.is_locked ||
-                                                        !department.can_delete ||
-                                                        deletingDepartmentId ===
-                                                            department.id
-                                                    "
-                                                    @click="
-                                                        deleteDepartment(
+                                                    <span>{{
+                                                        displayDepartmentName(
                                                             department,
+                                                            department.name,
                                                         )
-                                                    "
-                                                >
-                                                    <Spinner
+                                                    }}</span>
+                                                    <span
                                                         v-if="
-                                                            deletingDepartmentId ===
-                                                            department.id
+                                                            department.is_locked
                                                         "
-                                                    />
-                                                    <Trash2
-                                                        v-else
-                                                        class="mr-2 size-4"
-                                                    />
-                                                    Delete
-                                                </Button>
-                                            </ResponsiveActionGroup>
-                                            <p
-                                                v-if="department.is_locked"
-                                                class="mt-2 text-right text-xs text-muted-foreground"
+                                                        class="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                                                    >
+                                                        Protected
+                                                    </span>
+                                                </div>
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-muted-foreground"
                                             >
-                                                Central budget department
-                                            </p>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                                {{
+                                                    department.description ||
+                                                    'No description'
+                                                }}
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 text-muted-foreground"
+                                            >
+                                                {{ department.user_count }}
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <ResponsiveActionGroup
+                                                    align="end"
+                                                    :full-width-on-mobile="
+                                                        false
+                                                    "
+                                                >
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        :disabled="
+                                                            department.is_locked
+                                                        "
+                                                        @click="
+                                                            openEditDialog(
+                                                                department,
+                                                            )
+                                                        "
+                                                    >
+                                                        <Pencil
+                                                            class="mr-2 size-4"
+                                                        />
+                                                        Edit
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        :disabled="
+                                                            department.is_locked ||
+                                                            !department.can_delete ||
+                                                            deletingDepartmentId ===
+                                                                department.id
+                                                        "
+                                                        @click="
+                                                            deleteDepartment(
+                                                                department,
+                                                            )
+                                                        "
+                                                    >
+                                                        <Spinner
+                                                            v-if="
+                                                                deletingDepartmentId ===
+                                                                department.id
+                                                            "
+                                                        />
+                                                        <Trash2
+                                                            v-else
+                                                            class="mr-2 size-4"
+                                                        />
+                                                        Delete
+                                                    </Button>
+                                                </ResponsiveActionGroup>
+                                                <p
+                                                    v-if="department.is_locked"
+                                                    class="mt-2 text-right text-xs text-muted-foreground"
+                                                >
+                                                    Central budget department
+                                                </p>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

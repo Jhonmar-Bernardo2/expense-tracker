@@ -13,6 +13,8 @@ use App\Http\Requests\SubmitApprovalVoucherRequest;
 use App\Http\Requests\UpsertApprovalVoucherRequest;
 use App\Http\Resources\ActivityLogResource;
 use App\Http\Resources\ApprovalVoucherResource;
+use App\Models\Department;
+use App\Models\User;
 use App\Repositories\ActivityLogRepository;
 use App\Repositories\ApprovalVoucherRepository;
 use App\Repositories\CategoryRepository;
@@ -25,7 +27,7 @@ use App\Services\ApprovalVoucher\UpdateApprovalVoucherService;
 use App\Services\Department\DepartmentScopeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use App\Models\User;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -145,8 +147,8 @@ class ApprovalVoucherController extends Controller
             ->with(
                 'success',
                 $approvalVoucher->status === ApprovalVoucherStatus::PendingApproval
-                    ? 'Approval voucher submitted for approval.'
-                    : 'Approval voucher draft created.',
+                    ? 'Request sent for review.'
+                    : 'Draft request created.',
             );
     }
 
@@ -166,7 +168,7 @@ class ApprovalVoucherController extends Controller
             $request->validated(),
         );
 
-        return back()->with('success', 'Approval voucher updated.');
+        return back()->with('success', 'Request updated.');
     }
 
     public function submit(
@@ -181,7 +183,7 @@ class ApprovalVoucherController extends Controller
 
         $submitApprovalVoucherService->handle($request->user(), $existingApprovalVoucher);
 
-        return back()->with('success', 'Approval voucher submitted for approval.');
+        return back()->with('success', 'Request sent for review.');
     }
 
     public function approve(
@@ -200,7 +202,7 @@ class ApprovalVoucherController extends Controller
             $request->validated(),
         );
 
-        return back()->with('success', 'Approval voucher approved and applied.');
+        return back()->with('success', 'Request approved and applied.');
     }
 
     public function reject(
@@ -219,7 +221,7 @@ class ApprovalVoucherController extends Controller
             $request->validated(),
         );
 
-        return back()->with('success', 'Approval voucher rejected.');
+        return back()->with('success', 'Request rejected.');
     }
 
     /**
@@ -249,7 +251,7 @@ class ApprovalVoucherController extends Controller
     }
 
     /**
-     * @return \Illuminate\Support\Collection<int, \App\Models\Department>
+     * @return Collection<int, Department>
      */
     private function getApprovalVoucherDepartmentOptions(User $user)
     {

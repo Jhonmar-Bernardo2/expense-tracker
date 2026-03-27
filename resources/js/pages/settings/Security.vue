@@ -31,7 +31,7 @@ withDefaults(defineProps<Props>(), {
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Security settings',
+        title: 'Security',
         href: edit(),
     },
 ];
@@ -44,16 +44,16 @@ onUnmounted(() => clearTwoFactorAuthData());
 
 <template>
     <AppLayout :breadcrumbs="breadcrumbs">
-        <Head title="Security settings" />
+        <Head title="Security" />
 
-        <h1 class="sr-only">Security settings</h1>
+        <h1 class="sr-only">Security</h1>
 
         <SettingsLayout>
             <div class="space-y-6">
                 <Heading
                     variant="small"
-                    title="Update password"
-                    description="Ensure your account is using a long, random password to stay secure"
+                    title="Change password"
+                    description="Use a strong password to keep your account safe"
                 />
 
                 <Form
@@ -113,7 +113,7 @@ onUnmounted(() => clearTwoFactorAuthData());
                             :disabled="processing"
                             data-test="update-password-button"
                         >
-                            Save password
+                            Save changes
                         </Button>
 
                         <Transition
@@ -136,8 +136,8 @@ onUnmounted(() => clearTwoFactorAuthData());
             <div v-if="canManageTwoFactor" class="space-y-6">
                 <Heading
                     variant="small"
-                    title="Two-factor authentication"
-                    description="Manage your two-factor authentication settings"
+                    title="2-step verification"
+                    description="Add an extra sign-in step for better account security"
                 />
 
                 <div
@@ -145,10 +145,8 @@ onUnmounted(() => clearTwoFactorAuthData());
                     class="flex flex-col items-start justify-start space-y-4"
                 >
                     <p class="text-sm text-muted-foreground">
-                        When you enable two-factor authentication, you will be
-                        prompted for a secure pin during login. This pin can be
-                        retrieved from a TOTP-supported application on your
-                        phone.
+                        When you turn on 2-step verification, you will enter a
+                        code from your authenticator app each time you sign in.
                     </p>
 
                     <div>
@@ -165,7 +163,7 @@ onUnmounted(() => clearTwoFactorAuthData());
                             #default="{ processing }"
                         >
                             <Button type="submit" :disabled="processing">
-                                Enable 2FA
+                                Turn on 2-step verification
                             </Button>
                         </Form>
                     </div>
@@ -176,9 +174,8 @@ onUnmounted(() => clearTwoFactorAuthData());
                     class="flex flex-col items-start justify-start space-y-4"
                 >
                     <p class="text-sm text-muted-foreground">
-                        You will be prompted for a secure, random pin during
-                        login, which you can retrieve from the TOTP-supported
-                        application on your phone.
+                        You will enter a code from your authenticator app each
+                        time you sign in.
                     </p>
 
                     <div class="relative inline">
@@ -188,7 +185,7 @@ onUnmounted(() => clearTwoFactorAuthData());
                                 type="submit"
                                 :disabled="processing"
                             >
-                                Disable 2FA
+                                Turn off 2-step verification
                             </Button>
                         </Form>
                     </div>

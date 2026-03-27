@@ -23,7 +23,7 @@ defineProps<Props>();
 
 const breadcrumbItems: BreadcrumbItem[] = [
     {
-        title: 'Profile settings',
+        title: 'Profile',
         href: edit(),
     },
 ];
@@ -34,16 +34,16 @@ const user = computed(() => page.props.auth.user as User);
 
 <template>
     <AppLayout :breadcrumbs="breadcrumbItems">
-        <Head title="Profile settings" />
+        <Head title="Profile" />
 
-        <h1 class="sr-only">Profile settings</h1>
+        <h1 class="sr-only">Profile</h1>
 
         <SettingsLayout>
             <div class="flex flex-col space-y-6">
                 <Heading
                     variant="small"
-                    title="Profile information"
-                    description="Update your name and email address"
+                    title="Your details"
+                    description="Change your name and email"
                 />
 
                 <Form
@@ -82,13 +82,13 @@ const user = computed(() => page.props.auth.user as User);
 
                     <div v-if="mustVerifyEmail && !user.email_verified_at">
                         <p class="-mt-4 text-sm text-muted-foreground">
-                            Your email address is unverified.
+                            Your email is not verified yet.
                             <Link
                                 :href="send()"
                                 as="button"
                                 class="text-foreground underline decoration-neutral-300 underline-offset-4 transition-colors duration-300 ease-out hover:decoration-current! dark:decoration-neutral-500"
                             >
-                                Click here to resend the verification email.
+                                Resend the verification email.
                             </Link>
                         </p>
 
@@ -96,8 +96,7 @@ const user = computed(() => page.props.auth.user as User);
                             v-if="status === 'verification-link-sent'"
                             class="mt-2 text-sm font-medium text-green-600"
                         >
-                            A new verification link has been sent to your email
-                            address.
+                            A new verification link was sent to your email.
                         </div>
                     </div>
 

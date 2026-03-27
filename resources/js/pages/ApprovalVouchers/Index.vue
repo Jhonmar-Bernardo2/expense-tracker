@@ -40,6 +40,10 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
+import {
+    displayApprovalModuleLabel,
+    displayDepartmentName,
+} from '@/lib/plain-language';
 import { dashboard } from '@/routes';
 import {
     index as approvalVoucherIndex,
@@ -76,7 +80,7 @@ const props = defineProps<{
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
-    { title: 'Approval Vouchers', href: approvalVoucherIndex() },
+    { title: 'Requests', href: approvalVoucherIndex() },
 ];
 
 const selectedDepartment = ref<number | 'all'>(
@@ -91,17 +95,17 @@ const summaryMetrics = computed(() => [
         id: 'approval-total-requests',
         label: 'Total requests',
         value: props.approval_vouchers.meta.total.toLocaleString(),
-        helper: 'All approval vouchers that match the current scope.',
+        helper: 'All requests that match the current filters.',
         icon: FileText,
         tone: 'info' as const,
     },
     {
         id: 'approval-pending',
-        label: 'Pending approval',
+        label: 'Waiting for review',
         value: props.approval_vouchers.data
             .filter((item) => item.status === 'pending_approval')
             .length.toLocaleString(),
-        helper: 'Pending requests on the current page.',
+        helper: 'Requests waiting for review on this page.',
         icon: CheckCheck,
         tone: 'warning' as const,
     },
@@ -110,9 +114,8 @@ const summaryMetrics = computed(() => [
         label: 'Current scope',
         value: props.department_scope.is_all_departments
             ? 'All departments'
-            : (props.department_scope.selected_department?.name ??
-              'Assigned department'),
-        helper: 'The active visibility scope for this queue.',
+            : displayDepartmentName(props.department_scope.selected_department),
+        helper: 'What you are viewing right now.',
         icon: Search,
         tone: 'default' as const,
     },
@@ -189,7 +192,7 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
 </script>
 
 <template>
-    <Head title="Approval Vouchers" />
+    <Head title="Requests" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex flex-1 flex-col gap-6 p-4">
@@ -201,12 +204,11 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                         <div class="space-y-1.5">
                             <CardTitle class="flex items-center gap-2 text-xl">
                                 <ShieldCheck class="size-5" />
-                                Approval Vouchers
+                                Requests
                             </CardTitle>
                             <CardDescription>
-                                Transaction requests go to Financial
-                                Management, while monthly allocation requests go
-                                to admin for final approval.
+                                Review requests waiting for approval or already
+                                processed.
                             </CardDescription>
                         </div>
                     </CardHeader>
@@ -229,8 +231,8 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                     <CardHeader>
                         <CardTitle>Filters</CardTitle>
                         <CardDescription>
-                            Narrow the approval queue by scope, type, status,
-                            and search.
+                            Find requests by department, type, status, or
+                            keyword.
                         </CardDescription>
                     </CardHeader>
                     <CardContent class="space-y-4">
@@ -264,7 +266,12 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                         :key="department.id"
                                         :value="department.id"
                                     >
-                                        {{ department.name }}
+                                        {{
+                                            displayDepartmentName(
+                                                department,
+                                                department.name,
+                                            )
+                                        }}
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
@@ -325,7 +332,15 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                             :key="module.value"
                                             :value="module.value"
                                         >
-                                            {{ module.label }}
+                                            {{
+                                                displayApprovalModuleLabel(
+                                                    module.value as
+                                                        | 'transaction'
+                                                        | 'budget'
+                                                        | 'allocation',
+                                                    module.label,
+                                                )
+                                            }}
                                         </SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -387,7 +402,7 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
 
             <Card class="border-sidebar-border/70 shadow-sm">
                 <CardHeader>
-                    <CardTitle>Queue</CardTitle>
+                    <CardTitle>Request list</CardTitle>
                     <CardDescription>
                         {{ approval_vouchers.meta.total }} request{{
                             approval_vouchers.meta.total === 1 ? '' : 's'
@@ -400,7 +415,7 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                         v-if="approval_vouchers.data.length === 0"
                         class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
                     >
-                        No approval vouchers found for the current filters.
+                        No requests found for these filters.
                     </div>
 
                     <div v-else class="space-y-3">
@@ -410,17 +425,25 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                 :key="`approval-card-${approvalVoucher.id}`"
                                 class="rounded-xl border p-4 shadow-sm"
                             >
-                                <div class="flex items-start justify-between gap-3">
+                                <div
+                                    class="flex items-start justify-between gap-3"
+                                >
                                     <div class="min-w-0">
                                         <div class="font-medium">
                                             {{ approvalVoucher.subject }}
                                         </div>
-                                        <div class="mt-1 text-xs text-muted-foreground">
+                                        <div
+                                            class="mt-1 text-xs text-muted-foreground"
+                                        >
                                             {{ approvalVoucher.voucher_no }}
                                         </div>
                                     </div>
                                     <Badge
-                                        :variant="statusVariant(approvalVoucher.status)"
+                                        :variant="
+                                            statusVariant(
+                                                approvalVoucher.status,
+                                            )
+                                        "
                                     >
                                         {{ approvalVoucher.status_label }}
                                     </Badge>
@@ -429,10 +452,17 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                 <div class="mt-4 grid gap-3">
                                     <div class="flex flex-wrap gap-2">
                                         <Badge variant="outline">
-                                            {{ approvalVoucher.module_label }}
+                                            {{
+                                                displayApprovalModuleLabel(
+                                                    approvalVoucher.module,
+                                                    approvalVoucher.module_label,
+                                                )
+                                            }}
                                         </Badge>
                                         <Badge
-                                            :variant="agingVariant(approvalVoucher)"
+                                            :variant="
+                                                agingVariant(approvalVoucher)
+                                            "
                                         >
                                             {{ agingLabel(approvalVoucher) }}
                                         </Badge>
@@ -443,8 +473,13 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                     <div class="text-sm text-muted-foreground">
                                         Department:
                                         {{
-                                            approvalVoucher.department?.name ??
-                                            'Unassigned'
+                                            approvalVoucher.department
+                                                ? displayDepartmentName(
+                                                      approvalVoucher.department,
+                                                      approvalVoucher.department
+                                                          .name,
+                                                  )
+                                                : 'Unassigned'
                                         }}
                                     </div>
                                     <div class="text-sm text-muted-foreground">
@@ -479,113 +514,134 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                             </div>
                         </div>
 
-                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                        <div
+                            class="hidden overflow-hidden rounded-lg border md:block"
+                        >
                             <Table>
-                            <TableHeader class="bg-muted/50">
-                                <TableRow>
-                                    <TableHead>Voucher</TableHead>
-                                    <TableHead>Subject</TableHead>
-                                    <TableHead>Module</TableHead>
-                                    <TableHead
-                                        v-if="
-                                            department_scope.can_select_department
-                                        "
-                                    >
-                                        Department
-                                    </TableHead>
-                                    <TableHead>Preparer</TableHead>
-                                    <TableHead>Status</TableHead>
-                                    <TableHead>Aging</TableHead>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead class="text-right"
-                                        >Actions</TableHead
-                                    >
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow
-                                    v-for="approvalVoucher in approval_vouchers.data"
-                                    :key="approvalVoucher.id"
-                                >
-                                    <TableCell class="font-medium">
-                                        {{ approvalVoucher.voucher_no }}
-                                    </TableCell>
-                                    <TableCell>
-                                        <div class="font-medium">
-                                            {{ approvalVoucher.subject }}
-                                        </div>
-                                        <div
-                                            class="text-xs text-muted-foreground"
-                                        >
-                                            {{ approvalVoucher.action_label }}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>
-                                        {{ approvalVoucher.module_label }}
-                                    </TableCell>
-                                    <TableCell
-                                        v-if="
-                                            department_scope.can_select_department
-                                        "
-                                    >
-                                        {{
-                                            approvalVoucher.department?.name ??
-                                            '-'
-                                        }}
-                                    </TableCell>
-                                    <TableCell>
-                                        {{
-                                            approvalVoucher.requested_by_user
-                                                ?.name ?? '-'
-                                        }}
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            :variant="
-                                                statusVariant(
-                                                    approvalVoucher.status,
-                                                )
+                                <TableHeader class="bg-muted/50">
+                                    <TableRow>
+                                        <TableHead>Request no.</TableHead>
+                                        <TableHead>Subject</TableHead>
+                                        <TableHead>Module</TableHead>
+                                        <TableHead
+                                            v-if="
+                                                department_scope.can_select_department
                                             "
                                         >
-                                            {{ approvalVoucher.status_label }}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            :variant="
-                                                agingVariant(approvalVoucher)
-                                            "
+                                            Department
+                                        </TableHead>
+                                        <TableHead>Preparer</TableHead>
+                                        <TableHead>Status</TableHead>
+                                        <TableHead>Aging</TableHead>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead class="text-right"
+                                            >Actions</TableHead
                                         >
-                                            {{ agingLabel(approvalVoucher) }}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell>{{
-                                        rowDate(approvalVoucher)
-                                    }}</TableCell>
-                                    <TableCell>
-                                        <ResponsiveActionGroup
-                                            align="end"
-                                            :full-width-on-mobile="false"
-                                        >
-                                            <Button
-                                                as-child
-                                                variant="outline"
-                                                size="sm"
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow
+                                        v-for="approvalVoucher in approval_vouchers.data"
+                                        :key="approvalVoucher.id"
+                                    >
+                                        <TableCell class="font-medium">
+                                            {{ approvalVoucher.voucher_no }}
+                                        </TableCell>
+                                        <TableCell>
+                                            <div class="font-medium">
+                                                {{ approvalVoucher.subject }}
+                                            </div>
+                                            <div
+                                                class="text-xs text-muted-foreground"
                                             >
-                                                <Link
-                                                    :href="
-                                                        approvalVoucherShow(
-                                                            approvalVoucher.id,
-                                                        )
-                                                    "
+                                                {{
+                                                    approvalVoucher.action_label
+                                                }}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>
+                                            {{
+                                                displayApprovalModuleLabel(
+                                                    approvalVoucher.module,
+                                                    approvalVoucher.module_label,
+                                                )
+                                            }}
+                                        </TableCell>
+                                        <TableCell
+                                            v-if="
+                                                department_scope.can_select_department
+                                            "
+                                        >
+                                            {{
+                                                approvalVoucher.department
+                                                    ? displayDepartmentName(
+                                                          approvalVoucher.department,
+                                                          approvalVoucher
+                                                              .department.name,
+                                                      )
+                                                    : '-'
+                                            }}
+                                        </TableCell>
+                                        <TableCell>
+                                            {{
+                                                approvalVoucher
+                                                    .requested_by_user?.name ??
+                                                '-'
+                                            }}
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                :variant="
+                                                    statusVariant(
+                                                        approvalVoucher.status,
+                                                    )
+                                                "
+                                            >
+                                                {{
+                                                    approvalVoucher.status_label
+                                                }}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                :variant="
+                                                    agingVariant(
+                                                        approvalVoucher,
+                                                    )
+                                                "
+                                            >
+                                                {{
+                                                    agingLabel(approvalVoucher)
+                                                }}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell>{{
+                                            rowDate(approvalVoucher)
+                                        }}</TableCell>
+                                        <TableCell>
+                                            <ResponsiveActionGroup
+                                                align="end"
+                                                :full-width-on-mobile="false"
+                                            >
+                                                <Button
+                                                    as-child
+                                                    variant="outline"
+                                                    size="sm"
                                                 >
-                                                    View
-                                                </Link>
-                                            </Button>
-                                        </ResponsiveActionGroup>
-                                    </TableCell>
-                                </TableRow>
-                            </TableBody>
+                                                    <Link
+                                                        :href="
+                                                            approvalVoucherShow(
+                                                                approvalVoucher.id,
+                                                            )
+                                                        "
+                                                    >
+                                                        View
+                                                    </Link>
+                                                </Button>
+                                            </ResponsiveActionGroup>
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
                             </Table>
                         </div>
                     </div>

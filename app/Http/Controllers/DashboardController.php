@@ -9,6 +9,8 @@ use App\Http\Resources\ApprovalVoucherResource;
 use App\Http\Resources\BudgetAllocationResource;
 use App\Http\Resources\BudgetResource;
 use App\Http\Resources\TransactionResource;
+use App\Models\ApprovalVoucher;
+use App\Models\Transaction;
 use App\Repositories\ApprovalVoucherRepository;
 use App\Repositories\BudgetAllocationRepository;
 use App\Repositories\BudgetRepository;
@@ -17,6 +19,7 @@ use App\Services\Budget\BudgetAccessService;
 use App\Services\Department\DepartmentScopeService;
 use App\Services\Department\FinancialManagementDepartmentService;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -31,8 +34,7 @@ class DashboardController extends Controller
         private readonly BudgetAccessService $budgetAccessService,
         private readonly DepartmentScopeService $departmentScopeService,
         private readonly FinancialManagementDepartmentService $financialManagementDepartmentService,
-    ) {
-    }
+    ) {}
 
     public function index(IndexDashboardRequest $request): Response
     {
@@ -63,7 +65,7 @@ class DashboardController extends Controller
             'income_vs_expenses' => $this->dashboardRepository->getIncomeVsExpensesByMonth($scope['department_id'], (int) $now->year),
         ];
         $budgetPayload = ! $canViewBudgetSummaries ? null : [
-            'scope_label' => 'Central allocation',
+            'scope_label' => 'Central monthly budget',
             'financial_management_department' => $financialManagementDepartment->toSummaryArray(),
             'active_allocation' => $activeAllocation === null
                 ? null
@@ -132,9 +134,9 @@ class DashboardController extends Controller
      *         total_remaining: float,
      *         categories_over_budget: int
      *     },
-     *     current_month_statuses: \Illuminate\Http\Resources\Json\AnonymousResourceCollection
+     *     current_month_statuses: AnonymousResourceCollection
      * }|null  $budgetPayload
-     * @param  Collection<int, \App\Models\Transaction>  $recentTransactions
+     * @param  Collection<int, Transaction>  $recentTransactions
      * @return array<string, mixed>
      */
     private function buildDashboardView(
@@ -147,32 +149,30 @@ class DashboardController extends Controller
     ): array {
         $user = $request->user();
         $mode = $this->resolveDashboardViewMode($user);
-        $departmentName = $scope['selected_department']['name']
-            ?? ($scope['is_all_departments'] ? 'all departments' : 'your department');
         $requesterCounts = $this->approvalVoucherRepository->getRequesterDashboardCounts($user, CarbonImmutable::now());
 
         return match ($mode) {
             'admin' => [
                 'mode' => $mode,
-                'title' => 'Executive Financial Dashboard',
-                'description' => 'Monitor organization-wide cash flow, allocation approvals, and central finance health.',
+                'title' => 'Organization overview',
+                'description' => 'Monitor cash flow, monthly budget requests, and overall spending.',
                 'primary_metrics' => [
                     $this->metric('total-income', 'Total income', $totals['income'], 'currency', 'Across the selected scope.', 'success'),
                     $this->metric('total-expenses', 'Total expenses', $totals['expenses'], 'currency', 'Across the selected scope.', 'warning'),
                     $this->metric('net-balance', 'Net balance', $totals['balance'], 'currency', 'Income minus expenses.', $totals['balance'] < 0 ? 'danger' : 'info'),
                     $this->metric(
                         'pending-allocation-approvals',
-                        'Pending allocation approvals',
+                        'Pending budget requests',
                         $this->approvalVoucherRepository->countPendingForModule($user, ApprovalVoucherModule::Allocation),
                         'number',
-                        'Monthly full-budget requests awaiting admin review.',
+                        'Monthly budget requests waiting for review.',
                         'info',
                     ),
                 ],
                 'quick_actions' => [
                     $this->action(
                         'review-allocation-approvals',
-                        'Review allocation approvals',
+                        'Review budget requests',
                         route('approval-vouchers.index', [
                             'module' => ApprovalVoucherModule::Allocation->value,
                             'status' => ApprovalVoucherStatus::PendingApproval->value,
@@ -180,14 +180,14 @@ class DashboardController extends Controller
                         'default',
                         'file-text',
                     ),
-                    $this->action('open-reports', 'Open reports', route('reports.index', [], false), 'outline', 'bar-chart-3'),
-                    $this->action('review-central-budget', 'Review central budget', route('budgets.index', [], false), 'secondary', 'piggy-bank'),
+                    $this->action('open-reports', 'View reports', route('reports.index', [], false), 'outline', 'bar-chart-3'),
+                    $this->action('review-central-budget', 'View monthly budget', route('budgets.index', [], false), 'secondary', 'piggy-bank'),
                 ],
                 'primary_section' => $this->section(
                     'allocation-approvals',
-                    'Latest critical approvals',
-                    'Monthly allocation requests, sorted with pending items first.',
-                    'No allocation approval requests are visible right now.',
+                    'Latest budget requests',
+                    'Monthly budget requests, with items waiting for review first.',
+                    'No monthly budget requests are visible right now.',
                     ApprovalVoucherResource::collection(
                         $this->approvalVoucherRepository->getRecentByModuleForDashboard(
                             $user,
@@ -198,32 +198,33 @@ class DashboardController extends Controller
                         )
                     )->resolve($request),
                 ),
+                'attention_banner' => null,
                 'secondary_section' => null,
             ],
             'financial_management' => [
                 'mode' => $mode,
-                'title' => 'Financial Management Operations',
-                'description' => 'Work the approval queue, manage category budgets, and track central allocation execution.',
+                'title' => 'Finance Team overview',
+                'description' => 'Review requests, manage category budgets, and track the monthly budget.',
                 'primary_metrics' => [
                     $this->metric(
                         'approved-allocation',
-                        'Approved allocation',
+                        'Approved monthly budget',
                         $budgetPayload['current_month_summary']['approved_allocation'] ?? 0,
                         'currency',
-                        'Current approved monthly total.',
+                        'Current approved monthly budget.',
                         'info',
                     ),
                     $this->metric(
                         'allocated-categories',
-                        'Allocated to categories',
+                        'Budget set for categories',
                         $budgetPayload['current_month_summary']['total_allocated'] ?? 0,
                         'currency',
-                        'Budget already assigned to categories.',
+                        'Amount already set aside for categories.',
                         'info',
                     ),
                     $this->metric(
                         'unallocated',
-                        'Unallocated',
+                        'Budget left to assign',
                         $budgetPayload['current_month_summary']['total_unallocated'] ?? 0,
                         'currency',
                         'Still available for category assignment.',
@@ -231,7 +232,7 @@ class DashboardController extends Controller
                     ),
                     $this->metric(
                         'spent',
-                        'Spent organization-wide',
+                        'Total spent',
                         $budgetPayload['current_month_summary']['total_spent'] ?? 0,
                         'currency',
                         'Approved expense transactions this month.',
@@ -239,25 +240,25 @@ class DashboardController extends Controller
                     ),
                     $this->metric(
                         'remaining',
-                        'Remaining after spending',
+                        'Budget left after spending',
                         $budgetPayload['current_month_summary']['total_remaining'] ?? 0,
                         'currency',
-                        'Approved allocation minus actual spend.',
+                        'Approved monthly budget minus spending.',
                         ($budgetPayload['current_month_summary']['total_remaining'] ?? 0) < 0 ? 'danger' : 'success',
                     ),
                     $this->metric(
                         'pending-transaction-approvals',
-                        'Pending transaction approvals',
+                        'Requests waiting for review',
                         $this->approvalVoucherRepository->countPendingForModule($user, ApprovalVoucherModule::Transaction),
                         'number',
-                        'Department requests waiting for Financial Management review.',
+                        'Department requests waiting for Finance Team review.',
                         'info',
                     ),
                 ],
                 'quick_actions' => [
                     $this->action(
                         'review-transaction-requests',
-                        'Review transaction requests',
+                        'Review requests',
                         route('approval-vouchers.index', [
                             'module' => ApprovalVoucherModule::Transaction->value,
                             'status' => ApprovalVoucherStatus::PendingApproval->value,
@@ -265,14 +266,14 @@ class DashboardController extends Controller
                         'default',
                         'file-text',
                     ),
-                    $this->action('manage-category-budgets', 'Manage category budgets', route('budgets.index', [], false), 'secondary', 'piggy-bank'),
-                    $this->action('open-reports', 'Open reports', route('reports.index', [], false), 'outline', 'bar-chart-3'),
+                    $this->action('manage-category-budgets', 'Manage budgets', route('budgets.index', [], false), 'secondary', 'piggy-bank'),
+                    $this->action('open-reports', 'View reports', route('reports.index', [], false), 'outline', 'bar-chart-3'),
                 ],
                 'primary_section' => $this->section(
                     'transaction-approval-queue',
-                    'Transaction approval queue',
-                    'Pending department requests that need Financial Management action.',
-                    'No pending transaction requests are waiting for review.',
+                    'Requests waiting for review',
+                    'Pending department requests that need Finance Team action.',
+                    'No requests are waiting for review.',
                     ApprovalVoucherResource::collection(
                         $this->approvalVoucherRepository->getRecentByModuleForDashboard(
                             $user,
@@ -283,11 +284,12 @@ class DashboardController extends Controller
                         )
                     )->resolve($request),
                 ),
+                'attention_banner' => null,
                 'secondary_section' => $this->section(
                     'recent-department-requests',
-                    'Recent department requests',
-                    'Latest transaction requests across departments, including recently processed items.',
-                    'No recent department requests are visible right now.',
+                    'Recent requests',
+                    'Latest requests across departments, including recently processed items.',
+                    'No recent requests are visible right now.',
                     ApprovalVoucherResource::collection(
                         $this->approvalVoucherRepository->getRecentByModuleForDashboard(
                             $user,
@@ -300,59 +302,140 @@ class DashboardController extends Controller
                 ),
             ],
             default => [
-                'mode' => $mode,
-                'title' => 'Department Dashboard',
-                'description' => "Track {$departmentName} activity, monitor your request statuses, and submit new transaction requests.",
-                'primary_metrics' => [
-                    $this->metric(
-                        'my-pending-requests',
-                        'My pending requests',
-                        $requesterCounts['pending'],
-                        'number',
-                        'Requests still waiting for a final decision.',
-                        'info',
-                    ),
-                    $this->metric(
-                        'my-approved-requests',
-                        'Approved this month',
-                        $requesterCounts['approved_this_month'],
-                        'number',
-                        'Requests approved this month.',
-                        'success',
-                    ),
-                    $this->metric(
-                        'my-rejected-requests',
-                        'Rejected this month',
-                        $requesterCounts['rejected_this_month'],
-                        'number',
-                        'Requests rejected this month.',
-                        'warning',
-                    ),
-                    $this->metric(
-                        'department-expenses',
-                        'Department expenses this month',
-                        $currentMonth['expenses'],
-                        'currency',
-                        'Approved expense transactions for your department.',
-                        'warning',
-                    ),
-                ],
-                'quick_actions' => [
-                    $this->action('request-transaction', 'Request transaction', route('transactions.index', [], false), 'default', 'receipt'),
-                    $this->action('view-my-requests', 'View my requests', route('approval-vouchers.index', [], false), 'outline', 'file-text'),
-                ],
-                'primary_section' => $this->section(
-                    'my-request-statuses',
-                    'My request statuses',
-                    'Your most recent approval vouchers, with the latest status first.',
-                    'You have not submitted any approval requests yet.',
-                    ApprovalVoucherResource::collection(
-                        $this->approvalVoucherRepository->getRecentRequestsByRequester($user, 5)
-                    )->resolve($request),
+                ...$this->buildStaffDashboardView(
+                    $request,
+                    $currentMonth,
+                    $requesterCounts,
                 ),
-                'secondary_section' => null,
             ],
         };
+    }
+
+    /**
+     * @param  array{month: int, year: int, income: float, expenses: float, balance: float}  $currentMonth
+     * @param  array{pending: int, approved_this_month: int, rejected_this_month: int}  $requesterCounts
+     * @return array<string, mixed>
+     */
+    private function buildStaffDashboardView(
+        IndexDashboardRequest $request,
+        array $currentMonth,
+        array $requesterCounts,
+    ): array {
+        $user = $request->user();
+        $recentRequests = $this->approvalVoucherRepository->getRecentRequestsByRequester($user, 5);
+
+        return [
+            'mode' => 'staff',
+            'title' => 'My dashboard',
+            'description' => 'Track department activity, check request updates, and send new requests.',
+            'primary_metrics' => [
+                $this->metric(
+                    'my-pending-requests',
+                    'My open requests',
+                    $requesterCounts['pending'],
+                    'number',
+                    'Requests still waiting for a final decision.',
+                    'info',
+                ),
+                $this->metric(
+                    'my-approved-requests',
+                    'Approved this month',
+                    $requesterCounts['approved_this_month'],
+                    'number',
+                    'Requests approved this month.',
+                    'success',
+                ),
+                $this->metric(
+                    'my-rejected-requests',
+                    'Rejected this month',
+                    $requesterCounts['rejected_this_month'],
+                    'number',
+                    'Requests rejected this month.',
+                    'warning',
+                ),
+                $this->metric(
+                    'department-expenses',
+                    'Department spending this month',
+                    $currentMonth['expenses'],
+                    'currency',
+                    'Approved expense transactions for your department.',
+                    'warning',
+                ),
+            ],
+            'quick_actions' => [
+                $this->action(
+                    'request-transaction',
+                    'New request',
+                    route('transactions.index', [], false),
+                    'default',
+                    'receipt',
+                ),
+            ],
+            'attention_banner' => $this->buildStaffAttentionBanner(
+                $recentRequests,
+                $requesterCounts,
+            ),
+            'primary_section' => $this->section(
+                'my-request-statuses',
+                'My requests',
+                'Your latest requests, with the newest first.',
+                'You have not sent any requests yet.',
+                ApprovalVoucherResource::collection($recentRequests)->resolve($request),
+                route('approval-vouchers.index', [], false),
+                'My requests',
+            ),
+            'secondary_section' => null,
+        ];
+    }
+
+    /**
+     * @param  Collection<int, ApprovalVoucher>  $recentRequests
+     * @param  array{pending: int, approved_this_month: int, rejected_this_month: int}  $requesterCounts
+     * @return array{tone: string, title: string, description: string, href: string|null, action_label: string|null}|null
+     */
+    private function buildStaffAttentionBanner(Collection $recentRequests, array $requesterCounts): ?array
+    {
+        $recentRejectedRequest = $recentRequests->first(
+            fn ($voucher) => $voucher->status === ApprovalVoucherStatus::Rejected,
+        );
+
+        if ($recentRejectedRequest !== null) {
+            $subject = str($recentRejectedRequest->resolveSubject())
+                ->limit(72)
+                ->toString();
+
+            return [
+                'tone' => 'warning',
+                'title' => 'A recent request needs updates',
+                'description' => "\"{$subject}\" was rejected recently. Review the feedback and resubmit when ready.",
+                'href' => route('approval-vouchers.show', $recentRejectedRequest, false),
+                'action_label' => 'Review request',
+            ];
+        }
+
+        if ($requesterCounts['pending'] > 0) {
+            $requestLabel = $requesterCounts['pending'] === 1 ? 'request is' : 'requests are';
+
+            return [
+                'tone' => 'info',
+                'title' => 'You have requests awaiting review',
+                'description' => "{$requesterCounts['pending']} {$requestLabel} still pending approval. Check the latest status updates any time.",
+                'href' => route('approval-vouchers.index', [], false),
+                'action_label' => 'My requests',
+            ];
+        }
+
+        if ($recentRequests->isEmpty()) {
+            return [
+                'tone' => 'default',
+                'title' => 'Start your first request',
+                'description' => 'Submit a transaction request to begin tracking approvals and department spending from your dashboard.',
+                'href' => route('transactions.index', [], false),
+                'action_label' => 'New request',
+            ];
+        }
+
+        return null;
     }
 
     private function resolveDashboardViewMode($user): string
@@ -410,7 +493,7 @@ class DashboardController extends Controller
 
     /**
      * @param  array<int, mixed>  $items
-     * @return array{id: string, title: string, description: string, empty_message: string, items: array<int, mixed>}
+     * @return array{id: string, title: string, description: string, empty_message: string, items: array<int, mixed>, cta_href: string|null, cta_label: string|null}
      */
     private function section(
         string $id,
@@ -418,6 +501,8 @@ class DashboardController extends Controller
         string $description,
         string $emptyMessage,
         array $items,
+        ?string $ctaHref = null,
+        ?string $ctaLabel = null,
     ): array {
         return [
             'id' => $id,
@@ -425,6 +510,8 @@ class DashboardController extends Controller
             'description' => $description,
             'empty_message' => $emptyMessage,
             'items' => $items,
+            'cta_href' => $ctaHref,
+            'cta_label' => $ctaLabel,
         ];
     }
 }

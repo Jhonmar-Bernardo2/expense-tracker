@@ -46,25 +46,25 @@ const pinInputContainerRef = useTemplateRef('pinInputContainerRef');
 const modalConfig = computed<TwoFactorConfigContent>(() => {
     if (props.twoFactorEnabled) {
         return {
-            title: 'Two-factor authentication enabled',
+            title: '2-step verification is on',
             description:
-                'Two-factor authentication is now enabled. Scan the QR code or enter the setup key in your authenticator app.',
+                'Scan the QR code or enter the setup key in your authenticator app.',
             buttonText: 'Close',
         };
     }
 
     if (showVerificationStep.value) {
         return {
-            title: 'Verify authentication code',
-            description: 'Enter the 6-digit code from your authenticator app',
+            title: 'Enter your code',
+            description: 'Type the 6-digit code from your authenticator app.',
             buttonText: 'Continue',
         };
     }
 
     return {
-        title: 'Enable two-factor authentication',
+        title: 'Turn on 2-step verification',
         description:
-            'To finish enabling two-factor authentication, scan the QR code or enter the setup key in your authenticator app',
+            'Scan the QR code or enter the setup key in your authenticator app to finish setup.',
         buttonText: 'Continue',
     };
 });
@@ -79,7 +79,6 @@ const handleModalNextStep = () => {
 
         return;
     }
-
 
     clearSetupData();
     isOpen.value = false;
@@ -198,7 +197,7 @@ watch(
                                 class="absolute inset-0 top-1/2 h-px w-full bg-border"
                             />
                             <span class="relative bg-card px-2 py-1"
-                                >or, enter the code manually</span
+                                >or enter the code manually</span
                             >
                         </div>
 

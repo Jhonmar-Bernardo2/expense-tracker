@@ -50,42 +50,43 @@ const budgetAccess = computed(
     () => page.props.budget_access as BudgetAccessShared,
 );
 
-const mainNavItems = computed<NavItem[]>(() =>
-    [
-        {
-            title: 'Dashboard',
-            href: dashboard(),
-            icon: LayoutGrid,
-        },
-        {
-            title: 'Transactions',
-            href: transactions(),
-            icon: Receipt,
-        },
-        {
-            title: 'Approval Vouchers',
-            href: approvalVouchers(),
-            icon: FileText,
-            badge:
-                workflow.value.pending_approval_vouchers_count > 0
-                    ? workflow.value.pending_approval_vouchers_count
-                    : null,
-        },
-        {
-            title: 'Reports',
-            href: reports(),
-            icon: BarChart3,
-        },
-        ...(budgetAccess.value.can_view_page
-            ? [
-                  {
-                      title: 'Budgets',
-                      href: budgets(),
-                      icon: PiggyBank,
-                  },
-              ]
-            : []),
-    ] satisfies NavItem[],
+const mainNavItems = computed<NavItem[]>(
+    () =>
+        [
+            {
+                title: 'Dashboard',
+                href: dashboard(),
+                icon: LayoutGrid,
+            },
+            {
+                title: 'Transactions',
+                href: transactions(),
+                icon: Receipt,
+            },
+            {
+                title: 'Requests',
+                href: approvalVouchers(),
+                icon: FileText,
+                badge:
+                    workflow.value.pending_approval_vouchers_count > 0
+                        ? workflow.value.pending_approval_vouchers_count
+                        : null,
+            },
+            {
+                title: 'Reports',
+                href: reports(),
+                icon: BarChart3,
+            },
+            ...(budgetAccess.value.can_view_page
+                ? [
+                      {
+                          title: 'Budgets',
+                          href: budgets(),
+                          icon: PiggyBank,
+                      },
+                  ]
+                : []),
+        ] satisfies NavItem[],
 );
 
 const footerNavItems: NavItem[] = [
@@ -103,7 +104,7 @@ const footerNavItems: NavItem[] = [
 
 const adminNavItems: NavItem[] = [
     {
-        title: 'Manage Accounts',
+        title: 'Users',
         href: users(),
         icon: Users,
     },

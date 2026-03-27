@@ -32,6 +32,10 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/AppLayout.vue';
+import {
+    displayApprovalModuleLabel,
+    displayDepartmentName,
+} from '@/lib/plain-language';
 import { formatFileSize, SUPPORTING_DOCUMENT_ACCEPT } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import {
@@ -64,7 +68,7 @@ const props = defineProps<{
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
-    { title: 'Approval Vouchers', href: approvalVoucherIndex() },
+    { title: 'Requests', href: approvalVoucherIndex() },
     { title: props.approval_voucher.voucher_no, href: approvalVoucherIndex() },
 ];
 
@@ -212,9 +216,11 @@ const toggleAttachmentRemoval = (attachmentId: number) => {
 };
 
 const nameForDepartment = (id: number | null | undefined) =>
-    props.departments.find((department) => department.id === id)?.name ??
-    props.approval_voucher.department?.name ??
-    '-';
+    displayDepartmentName(
+        props.departments.find((department) => department.id === id),
+        props.departments.find((department) => department.id === id)?.name ??
+            displayDepartmentName(props.approval_voucher.department, '-'),
+    );
 const nameForCategory = (id: number | null | undefined) =>
     props.categories.find((category) => category.id === id)?.name ?? '-';
 const monthLabel = (month: number | null | undefined) =>
@@ -271,11 +277,11 @@ const fieldLabel = (key: string) =>
         description: 'Description',
         month: 'Month',
         year: 'Year',
-        amount_limit: 'Monthly limit',
+        amount_limit: 'Monthly budget',
     })[key] ?? key;
 const reviewTitle = computed(() =>
     props.approval_voucher.module === 'transaction'
-        ? 'Financial Management Review'
+        ? 'Finance Team review'
         : 'Admin Review',
 );
 
@@ -370,7 +376,7 @@ const eventVariant = (event: string) => {
                     >
                         <Link :href="approvalVoucherIndex()"
                             ><ArrowLeft class="mr-2 size-4" />Back to
-                            queue</Link
+                            requests</Link
                         >
                     </Button>
                     <div>
@@ -384,7 +390,10 @@ const eventVariant = (event: string) => {
                     <div class="flex flex-wrap gap-2">
                         <Badge>{{ approval_voucher.status_label }}</Badge>
                         <Badge variant="outline">{{
-                            approval_voucher.module_label
+                            displayApprovalModuleLabel(
+                                approval_voucher.module,
+                                approval_voucher.module_label,
+                            )
                         }}</Badge>
                         <Badge variant="outline">{{
                             approval_voucher.action_label
@@ -404,7 +413,7 @@ const eventVariant = (event: string) => {
                     </div>
                     <div>
                         <span class="font-medium text-foreground"
-                            >Preparer:</span
+                            >Requested by:</span
                         >
                         {{ approval_voucher.requested_by_user?.name ?? '-' }}
                     </div>
@@ -412,7 +421,12 @@ const eventVariant = (event: string) => {
                         <span class="font-medium text-foreground"
                             >Department:</span
                         >
-                        {{ approval_voucher.department?.name ?? '-' }}
+                        {{
+                            displayDepartmentName(
+                                approval_voucher.department,
+                                '-',
+                            )
+                        }}
                     </div>
                     <div>
                         <span class="font-medium text-foreground"
@@ -432,20 +446,20 @@ const eventVariant = (event: string) => {
             <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <Card class="border-sidebar-border/70 shadow-sm">
                     <CardHeader>
-                        <CardTitle>Payload</CardTitle>
+                        <CardTitle>Request details</CardTitle>
                         <CardDescription
-                            >Review the before and after snapshots for this
+                            >Review what will change in this
                             request.</CardDescription
                         >
                     </CardHeader>
                     <CardContent class="grid gap-4 lg:grid-cols-2">
                         <div class="space-y-2 rounded-lg border p-4">
-                            <div class="text-sm font-medium">Before</div>
+                            <div class="text-sm font-medium">Current</div>
                             <div
                                 v-if="approval_voucher.before_payload === null"
                                 class="text-sm text-muted-foreground"
                             >
-                                No prior final record snapshot.
+                                No saved record yet.
                             </div>
                             <div v-else class="space-y-2 text-sm">
                                 <div
@@ -466,15 +480,15 @@ const eventVariant = (event: string) => {
                             </div>
                         </div>
                         <div class="space-y-2 rounded-lg border p-4">
-                            <div class="text-sm font-medium">After</div>
+                            <div class="text-sm font-medium">Requested</div>
                             <div
                                 v-if="approval_voucher.after_payload === null"
                                 class="text-sm text-muted-foreground"
                             >
                                 {{
                                     isDelete
-                                        ? 'Approval will void or archive the final record.'
-                                        : 'No updated payload saved.'
+                                        ? 'This request will remove the saved record.'
+                                        : 'No new changes saved.'
                                 }}
                             </div>
                             <div v-else class="space-y-2 text-sm">
@@ -496,13 +510,11 @@ const eventVariant = (event: string) => {
                             </div>
                         </div>
                         <div class="rounded-lg border p-4">
-                            <div class="text-sm font-medium">
-                                Preparer notes
-                            </div>
+                            <div class="text-sm font-medium">Request notes</div>
                             <p class="mt-2 text-sm text-muted-foreground">
                                 {{
                                     approval_voucher.remarks ??
-                                    'No remarks provided.'
+                                    'No notes provided.'
                                 }}
                             </p>
                         </div>
@@ -526,9 +538,9 @@ const eventVariant = (event: string) => {
                         class="border-sidebar-border/70 shadow-sm"
                     >
                         <CardHeader>
-                            <CardTitle>Update Draft</CardTitle>
+                            <CardTitle>Edit draft</CardTitle>
                             <CardDescription
-                                >Adjust the request before you submit
+                                >Update the request before you submit
                                 it.</CardDescription
                             >
                         </CardHeader>
@@ -550,7 +562,10 @@ const eventVariant = (event: string) => {
                                                 :key="department.id"
                                                 :value="department.id"
                                                 >{{
-                                                    department.name
+                                                    displayDepartmentName(
+                                                        department,
+                                                        department.name,
+                                                    )
                                                 }}</SelectItem
                                             >
                                         </SelectContent>
@@ -567,8 +582,15 @@ const eventVariant = (event: string) => {
                                         Department:
                                     </span>
                                     {{
-                                        approval_voucher.department?.name ??
-                                        nameForDepartment(form.department_id)
+                                        approval_voucher.department
+                                            ? displayDepartmentName(
+                                                  approval_voucher.department,
+                                                  approval_voucher.department
+                                                      .name,
+                                              )
+                                            : nameForDepartment(
+                                                  form.department_id,
+                                              )
                                     }}
                                 </div>
                                 <template v-if="isTransaction && !isDelete">
@@ -663,9 +685,7 @@ const eventVariant = (event: string) => {
                                         />
                                     </div>
                                 </template>
-                                <template
-                                    v-else-if="isAllocation && !isDelete"
-                                >
+                                <template v-else-if="isAllocation && !isDelete">
                                     <div class="grid gap-4 sm:grid-cols-2">
                                         <div class="grid gap-2">
                                             <Label>Month</Label
@@ -700,7 +720,7 @@ const eventVariant = (event: string) => {
                                         </div>
                                     </div>
                                     <div class="grid gap-2">
-                                        <Label>Monthly limit</Label
+                                        <Label>Monthly budget</Label
                                         ><Input
                                             v-model="form.amount_limit"
                                             type="number"
@@ -770,7 +790,7 @@ const eventVariant = (event: string) => {
                                         </div>
                                     </div>
                                     <div class="grid gap-2">
-                                        <Label>Monthly limit</Label
+                                        <Label>Monthly budget</Label
                                         ><Input
                                             v-model="form.amount_limit"
                                             type="number"
@@ -782,7 +802,7 @@ const eventVariant = (event: string) => {
                                     </div>
                                 </template>
                                 <div class="grid gap-2">
-                                    <Label>Remarks</Label>
+                                    <Label>Notes</Label>
                                     <textarea
                                         v-model="form.remarks"
                                         class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -831,7 +851,7 @@ const eventVariant = (event: string) => {
                                 v-if="approval_voucher.permissions.can_approve"
                                 class="space-y-2"
                             >
-                                <Label>Approval notes</Label>
+                                <Label>Notes</Label>
                                 <textarea
                                     v-model="approveForm.remarks"
                                     class="min-h-24 w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -844,8 +864,8 @@ const eventVariant = (event: string) => {
                                     @click="approveRequest"
                                     ><Spinner
                                         v-if="approveForm.processing"
-                                    /><Check class="mr-2 size-4" />Approve and
-                                    apply</Button
+                                    /><Check class="mr-2 size-4" />Approve
+                                    request</Button
                                 >
                             </div>
                             <div
@@ -883,26 +903,24 @@ const eventVariant = (event: string) => {
                     <div class="space-y-1.5">
                         <CardTitle class="flex items-center gap-2">
                             <Paperclip class="size-4" />
-                            Supporting Documents
+                            Files
                         </CardTitle>
                         <CardDescription>
                             {{
                                 canEdit
-                                    ? `${attachmentPreviewCount}/5 documents will remain on this voucher after the next draft save.`
-                                    : `${approval_voucher.attachments.length} supporting documents attached to this voucher.`
+                                    ? `${attachmentPreviewCount}/5 files will stay on this request after the next draft save.`
+                                    : `${approval_voucher.attachments.length} file${approval_voucher.attachments.length === 1 ? '' : 's'} attached to this request.`
                             }}
                         </CardDescription>
                     </div>
                     <Badge variant="outline">
-                        {{ approval_voucher.attachments.length }} saved
+                        {{ approval_voucher.attachments.length }} saved files
                     </Badge>
                 </CardHeader>
                 <CardContent class="space-y-4">
                     <div v-if="canEdit" class="grid gap-2">
                         <div class="flex items-center justify-between gap-3">
-                            <Label for="voucher-attachments">
-                                Add supporting documents
-                            </Label>
+                            <Label for="voucher-attachments"> Add files </Label>
                             <span class="text-xs text-muted-foreground">
                                 {{ form.attachments.length }}/5 selected
                             </span>
@@ -933,7 +951,7 @@ const eventVariant = (event: string) => {
                         "
                         class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
                     >
-                        No supporting documents attached.
+                        No files added.
                     </div>
 
                     <div v-else class="space-y-3">

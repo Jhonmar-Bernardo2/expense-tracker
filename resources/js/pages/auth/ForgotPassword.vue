@@ -17,10 +17,10 @@ defineProps<{
 
 <template>
     <AuthLayout
-        title="Forgot password"
-        description="Enter your email to receive a password reset link"
+        title="Reset password"
+        description="Enter your email and we'll send you a reset link"
     >
-        <Head title="Forgot password" />
+        <Head title="Reset password" />
 
         <div
             v-if="status"
@@ -51,7 +51,7 @@ defineProps<{
                         data-test="email-password-reset-link-button"
                     >
                         <Spinner v-if="processing" />
-                        Email password reset link
+                        Send reset link
                     </Button>
                 </div>
             </Form>

@@ -24,8 +24,7 @@ class ReportsController extends Controller
         private readonly BudgetAccessService $budgetAccessService,
         private readonly DepartmentScopeService $departmentScopeService,
         private readonly FinancialManagementDepartmentService $financialManagementDepartmentService,
-    ) {
-    }
+    ) {}
 
     public function index(IndexReportRequest $request): Response
     {
@@ -102,7 +101,7 @@ class ReportsController extends Controller
                     ->all(),
             ],
             'budget_summary' => ! $canViewBudgetSummaries ? null : [
-                'scope_label' => 'Central allocation',
+                'scope_label' => 'Central monthly budget',
                 'financial_management_department' => $financialManagementDepartment->toSummaryArray(),
                 'active_allocation' => $activeAllocation === null
                     ? null

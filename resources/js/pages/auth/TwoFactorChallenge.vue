@@ -16,18 +16,16 @@ import type { TwoFactorConfigContent } from '@/types';
 const authConfigContent = computed<TwoFactorConfigContent>(() => {
     if (showRecoveryInput.value) {
         return {
-            title: 'Recovery code',
-            description:
-                'Please confirm access to your account by entering one of your emergency recovery codes.',
-            buttonText: 'login using an authentication code',
+            title: 'Backup code',
+            description: 'Enter one of your backup codes to sign in.',
+            buttonText: 'use an authentication code',
         };
     }
 
     return {
         title: 'Authentication code',
-        description:
-            'Enter the authentication code provided by your authenticator application.',
-        buttonText: 'login using a recovery code',
+        description: 'Enter the code from your authenticator app.',
+        buttonText: 'use a backup code',
     };
 });
 

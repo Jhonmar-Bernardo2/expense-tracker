@@ -21,8 +21,7 @@ class UserController extends Controller
     public function __construct(
         private readonly UserRepository $userRepository,
         private readonly DepartmentRepository $departmentRepository,
-    ) {
-    }
+    ) {}
 
     public function index(): Response
     {
@@ -47,7 +46,7 @@ class UserController extends Controller
     ): RedirectResponse {
         $storeUserService->handle($request->validated());
 
-        return back()->with('success', 'User account created.');
+        return back()->with('success', 'User added.');
     }
 
     public function update(
@@ -59,7 +58,7 @@ class UserController extends Controller
 
         $updateUserService->handle($existingUser, $request->validated());
 
-        return back()->with('success', 'User account updated.');
+        return back()->with('success', 'User updated.');
     }
 
     public function updateStatus(

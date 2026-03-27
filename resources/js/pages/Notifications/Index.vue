@@ -24,7 +24,11 @@ import {
 } from '@/components/ui/pagination';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
-import { index as notificationsIndex, read as readNotification, readAll as readAllNotifications } from '@/routes/notifications';
+import {
+    index as notificationsIndex,
+    read as readNotification,
+    readAll as readAllNotifications,
+} from '@/routes/notifications';
 import type {
     BreadcrumbItem,
     NotificationItem,
@@ -55,20 +59,25 @@ const summaryMetrics = computed(() => [
         value: sharedNotifications.value.unread_count.toLocaleString(),
         helper: 'Notifications that still need attention.',
         icon: Bell,
-        tone: sharedNotifications.value.unread_count > 0 ? ('warning' as const) : ('success' as const),
+        tone:
+            sharedNotifications.value.unread_count > 0
+                ? ('warning' as const)
+                : ('success' as const),
     },
     {
         id: 'notifications-visible',
-        label: 'Visible items',
+        label: 'Shown',
         value: props.notification_items.meta.total.toLocaleString(),
-        helper: 'Items available in your current inbox view.',
+        helper: 'Notifications shown on this page.',
         icon: CheckCheck,
         tone: 'info' as const,
     },
     {
         id: 'notifications-latest-update',
         label: 'Latest update',
-        value: formatDateTime(props.notification_items.data[0]?.created_at ?? null),
+        value: formatDateTime(
+            props.notification_items.data[0]?.created_at ?? null,
+        ),
         helper: 'Newest notification visible on this page.',
         icon: Clock3,
         tone: 'default' as const,
@@ -76,7 +85,11 @@ const summaryMetrics = computed(() => [
 ]);
 
 const markAsRead = (notification: NotificationItem) => {
-    router.patch(readNotification(notification.id).url, {}, { preserveScroll: true });
+    router.patch(
+        readNotification(notification.id).url,
+        {},
+        { preserveScroll: true },
+    );
 };
 
 const markAllAsRead = () => {
@@ -119,8 +132,8 @@ const formatDateTime = (value: string | null) => {
                             Notifications
                         </CardTitle>
                         <CardDescription>
-                            Review approval workflow alerts and mark them as read
-                            once handled.
+                            Check updates about your requests and mark them as
+                            read when you're done.
                         </CardDescription>
                     </div>
 
@@ -153,7 +166,7 @@ const formatDateTime = (value: string | null) => {
 
             <Card class="border-sidebar-border/70 shadow-sm">
                 <CardHeader>
-                    <CardTitle>Inbox</CardTitle>
+                    <CardTitle>All notifications</CardTitle>
                     <CardDescription>
                         {{ notification_items.meta.total }} notification{{
                             notification_items.meta.total === 1 ? '' : 's'
@@ -180,9 +193,13 @@ const formatDateTime = (value: string | null) => {
                                     : 'border-primary/30 bg-primary/5'
                             "
                         >
-                            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div
+                                class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"
+                            >
                                 <div class="space-y-2">
-                                    <div class="flex flex-wrap items-center gap-2">
+                                    <div
+                                        class="flex flex-wrap items-center gap-2"
+                                    >
                                         <Badge
                                             :variant="
                                                 notification.is_read
@@ -196,15 +213,25 @@ const formatDateTime = (value: string | null) => {
                                                     : 'Unread'
                                             }}
                                         </Badge>
-                                        <span class="text-xs text-muted-foreground">
-                                            {{ formatDateTime(notification.created_at) }}
+                                        <span
+                                            class="text-xs text-muted-foreground"
+                                        >
+                                            {{
+                                                formatDateTime(
+                                                    notification.created_at,
+                                                )
+                                            }}
                                         </span>
                                     </div>
                                     <div>
-                                        <h2 class="font-semibold text-foreground">
+                                        <h2
+                                            class="font-semibold text-foreground"
+                                        >
                                             {{ notification.title }}
                                         </h2>
-                                        <p class="mt-1 text-sm text-muted-foreground">
+                                        <p
+                                            class="mt-1 text-sm text-muted-foreground"
+                                        >
                                             {{ notification.body }}
                                         </p>
                                     </div>
@@ -236,16 +263,21 @@ const formatDateTime = (value: string | null) => {
                     </div>
 
                     <div class="mt-4">
-                        <Pagination v-if="notification_items.meta.last_page > 1">
+                        <Pagination
+                            v-if="notification_items.meta.last_page > 1"
+                        >
                             <PaginationContent>
                                 <PaginationItem>
                                     <PaginationPrev
                                         :href="notification_items.links.prev"
-                                        :disabled="!notification_items.links.prev"
+                                        :disabled="
+                                            !notification_items.links.prev
+                                        "
                                     />
                                 </PaginationItem>
                                 <PaginationItem
-                                    v-for="link in notification_items.meta.links"
+                                    v-for="link in notification_items.meta
+                                        .links"
                                     :key="link.label"
                                 >
                                     <PaginationLink
@@ -263,7 +295,9 @@ const formatDateTime = (value: string | null) => {
                                 <PaginationItem>
                                     <PaginationNext
                                         :href="notification_items.links.next"
-                                        :disabled="!notification_items.links.next"
+                                        :disabled="
+                                            !notification_items.links.next
+                                        "
                                     />
                                 </PaginationItem>
                             </PaginationContent>

@@ -49,6 +49,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { displayDepartmentName } from '@/lib/plain-language';
 import { dashboard } from '@/routes';
 import { store as storeApprovalVoucher } from '@/routes/approval-vouchers';
 import { index } from '@/routes/transactions';
@@ -129,8 +130,7 @@ const canRequestTransaction = computed(
 const departmentLabel = computed(() =>
     props.department_scope.is_all_departments
         ? 'All departments'
-        : (props.department_scope.selected_department?.name ??
-          'Assigned department'),
+        : displayDepartmentName(props.department_scope.selected_department),
 );
 
 const form = useForm({
@@ -322,10 +322,9 @@ const submitDeleteRequest = () => {
                                 Transactions
                             </CardTitle>
                             <CardDescription
-                                >Final approved income and expense records. New
-                                department requests must go through Financial
-                                Management approval
-                                vouchers.</CardDescription
+                                >Final income and expense records. New requests
+                                are reviewed by the Finance Team before they
+                                appear here.</CardDescription
                             >
                         </div>
                         <Dialog
@@ -338,7 +337,7 @@ const submitDeleteRequest = () => {
                                     @click="openCreateDialog"
                                 >
                                     <Plus class="mr-2 size-4" />
-                                    Request transaction
+                                    New request
                                 </Button>
                             </DialogTrigger>
 
@@ -348,13 +347,12 @@ const submitDeleteRequest = () => {
                                 <DialogHeader>
                                     <DialogTitle>{{
                                         editingTransaction
-                                            ? 'Request transaction update'
-                                            : 'Request transaction'
+                                            ? 'Update request'
+                                            : 'New request'
                                     }}</DialogTitle>
                                     <DialogDescription>
-                                        Complete the required fields, then
-                                        send the request to Financial
-                                        Management for review.
+                                        Fill in the details, then send your
+                                        request to the Finance Team for review.
                                     </DialogDescription>
                                 </DialogHeader>
 
@@ -367,7 +365,7 @@ const submitDeleteRequest = () => {
                                     >
                                         <div class="space-y-1">
                                             <h3 class="text-base font-semibold">
-                                                Request Details
+                                                Request details
                                             </h3>
                                             <p
                                                 class="text-sm text-muted-foreground"
@@ -399,7 +397,12 @@ const submitDeleteRequest = () => {
                                                         :key="department.id"
                                                         :value="department.id"
                                                     >
-                                                        {{ department.name }}
+                                                        {{
+                                                            displayDepartmentName(
+                                                                department,
+                                                                department.name,
+                                                            )
+                                                        }}
                                                     </SelectItem>
                                                 </SelectContent>
                                             </Select>
@@ -656,7 +659,12 @@ const submitDeleteRequest = () => {
                                         :key="department.id"
                                         :value="department.id"
                                     >
-                                        {{ department.name }}
+                                        {{
+                                            displayDepartmentName(
+                                                department,
+                                                department.name,
+                                            )
+                                        }}
                                     </SelectItem>
                                 </SelectContent>
                             </Select>
@@ -813,11 +821,10 @@ const submitDeleteRequest = () => {
             >
                 <DialogContent class="sm:max-w-lg">
                     <DialogHeader>
-                        <DialogTitle> Create delete request </DialogTitle>
+                        <DialogTitle>Request to remove transaction</DialogTitle>
                         <DialogDescription>
-                            Add a short explanation for why this transaction
-                            should be voided, then send it to Financial
-                            Management for approval.
+                            Add a short reason, then send this removal request
+                            to the Finance Team for review.
                         </DialogDescription>
                     </DialogHeader>
 
@@ -878,7 +885,7 @@ const submitDeleteRequest = () => {
                                 :disabled="deleteForm.processing"
                             >
                                 <Spinner v-if="deleteForm.processing" />
-                                Create delete request
+                                Send removal request
                             </Button>
                         </DialogFooter>
                     </form>
@@ -910,9 +917,13 @@ const submitDeleteRequest = () => {
                                 :key="`transaction-card-${transaction.id}`"
                                 class="rounded-xl border p-4 shadow-sm"
                             >
-                                <div class="flex items-start justify-between gap-3">
+                                <div
+                                    class="flex items-start justify-between gap-3"
+                                >
                                     <div class="min-w-0">
-                                        <div class="font-medium text-foreground">
+                                        <div
+                                            class="font-medium text-foreground"
+                                        >
                                             {{ transaction.title }}
                                         </div>
                                         <div
@@ -936,10 +947,14 @@ const submitDeleteRequest = () => {
 
                                 <div class="mt-4 grid gap-3 sm:grid-cols-2">
                                     <div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Date
                                         </div>
-                                        <div class="mt-1 text-sm text-muted-foreground">
+                                        <div
+                                            class="mt-1 text-sm text-muted-foreground"
+                                        >
                                             {{
                                                 transaction.transaction_date ??
                                                 '-'
@@ -947,26 +962,49 @@ const submitDeleteRequest = () => {
                                         </div>
                                     </div>
                                     <div v-if="canSelectDepartment">
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Department
                                         </div>
-                                        <div class="mt-1 text-sm text-muted-foreground">
-                                            {{ transaction.department?.name ?? '-' }}
+                                        <div
+                                            class="mt-1 text-sm text-muted-foreground"
+                                        >
+                                            {{
+                                                transaction.department
+                                                    ? displayDepartmentName(
+                                                          transaction.department,
+                                                          transaction.department
+                                                              .name,
+                                                      )
+                                                    : '-'
+                                            }}
                                         </div>
                                     </div>
                                     <div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Category
                                         </div>
-                                        <div class="mt-1 text-sm text-muted-foreground">
-                                            {{ transaction.category?.name ?? '-' }}
+                                        <div
+                                            class="mt-1 text-sm text-muted-foreground"
+                                        >
+                                            {{
+                                                transaction.category?.name ??
+                                                '-'
+                                            }}
                                         </div>
                                     </div>
                                     <div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Amount
                                         </div>
-                                        <div class="mt-1 font-medium tabular-nums">
+                                        <div
+                                            class="mt-1 font-medium tabular-nums"
+                                        >
                                             {{
                                                 transaction.type === 'income'
                                                     ? '+'
@@ -987,7 +1025,7 @@ const submitDeleteRequest = () => {
                                         @click="openEditDialog(transaction)"
                                     >
                                         <Pencil class="mr-2 size-4" />
-                                        Request update
+                                        Request changes
                                     </Button>
                                     <Button
                                         variant="outline"
@@ -995,110 +1033,127 @@ const submitDeleteRequest = () => {
                                         @click="openDeleteDialog(transaction)"
                                     >
                                         <Trash2 class="mr-2 size-4" />
-                                        Request delete
+                                        Request removal
                                     </Button>
                                 </ResponsiveActionGroup>
                             </div>
                         </div>
 
-                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                        <div
+                            class="hidden overflow-hidden rounded-lg border md:block"
+                        >
                             <Table>
-                            <TableHeader class="bg-muted/50">
-                                <TableRow>
-                                    <TableHead>Date</TableHead>
-                                    <TableHead v-if="canSelectDepartment"
-                                        >Department</TableHead
-                                    >
-                                    <TableHead>Title</TableHead>
-                                    <TableHead>Category</TableHead>
-                                    <TableHead>Type</TableHead>
-                                    <TableHead class="text-right"
-                                        >Amount</TableHead
-                                    >
-                                    <TableHead class="text-right"
-                                        >Actions</TableHead
-                                    >
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                <TableRow
-                                    v-for="transaction in transactions.data"
-                                    :key="transaction.id"
-                                >
-                                    <TableCell>{{
-                                        transaction.transaction_date ?? '-'
-                                    }}</TableCell>
-                                    <TableCell v-if="canSelectDepartment">{{
-                                        transaction.department?.name ?? '-'
-                                    }}</TableCell>
-                                    <TableCell>
-                                        <div class="font-medium">
-                                            {{ transaction.title }}
-                                        </div>
-                                        <div
-                                            v-if="transaction.description"
-                                            class="text-xs text-muted-foreground"
+                                <TableHeader class="bg-muted/50">
+                                    <TableRow>
+                                        <TableHead>Date</TableHead>
+                                        <TableHead v-if="canSelectDepartment"
+                                            >Department</TableHead
                                         >
-                                            {{ transaction.description }}
-                                        </div>
-                                    </TableCell>
-                                    <TableCell>{{
-                                        transaction.category?.name ?? '-'
-                                    }}</TableCell>
-                                    <TableCell>
-                                        <Badge
-                                            :variant="
-                                                transaction.type === 'income'
-                                                    ? 'default'
-                                                    : 'secondary'
-                                            "
-                                            class="capitalize"
+                                        <TableHead>Title</TableHead>
+                                        <TableHead>Category</TableHead>
+                                        <TableHead>Type</TableHead>
+                                        <TableHead class="text-right"
+                                            >Amount</TableHead
                                         >
-                                            {{ transaction.type }}
-                                        </Badge>
-                                    </TableCell>
-                                    <TableCell class="text-right tabular-nums">
-                                        {{
-                                            transaction.type === 'income'
-                                                ? '+'
+                                        <TableHead class="text-right"
+                                            >Actions</TableHead
+                                        >
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    <TableRow
+                                        v-for="transaction in transactions.data"
+                                        :key="transaction.id"
+                                    >
+                                        <TableCell>{{
+                                            transaction.transaction_date ?? '-'
+                                        }}</TableCell>
+                                        <TableCell v-if="canSelectDepartment">{{
+                                            transaction.department
+                                                ? displayDepartmentName(
+                                                      transaction.department,
+                                                      transaction.department
+                                                          .name,
+                                                  )
                                                 : '-'
-                                        }}{{
-                                            Number(transaction.amount).toFixed(
-                                                2,
-                                            )
-                                        }}
-                                    </TableCell>
-                                    <TableCell>
-                                        <ResponsiveActionGroup
-                                            align="end"
-                                            :full-width-on-mobile="false"
+                                        }}</TableCell>
+                                        <TableCell>
+                                            <div class="font-medium">
+                                                {{ transaction.title }}
+                                            </div>
+                                            <div
+                                                v-if="transaction.description"
+                                                class="text-xs text-muted-foreground"
+                                            >
+                                                {{ transaction.description }}
+                                            </div>
+                                        </TableCell>
+                                        <TableCell>{{
+                                            transaction.category?.name ?? '-'
+                                        }}</TableCell>
+                                        <TableCell>
+                                            <Badge
+                                                :variant="
+                                                    transaction.type ===
+                                                    'income'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                "
+                                                class="capitalize"
+                                            >
+                                                {{ transaction.type }}
+                                            </Badge>
+                                        </TableCell>
+                                        <TableCell
+                                            class="text-right tabular-nums"
                                         >
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                @click="
-                                                    openEditDialog(transaction)
-                                                "
+                                            {{
+                                                transaction.type === 'income'
+                                                    ? '+'
+                                                    : '-'
+                                            }}{{
+                                                Number(
+                                                    transaction.amount,
+                                                ).toFixed(2)
+                                            }}
+                                        </TableCell>
+                                        <TableCell>
+                                            <ResponsiveActionGroup
+                                                align="end"
+                                                :full-width-on-mobile="false"
                                             >
-                                                <Pencil class="mr-2 size-4" />
-                                                Request update
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                @click="
-                                                    openDeleteDialog(
-                                                        transaction,
-                                                    )
-                                                "
-                                            >
-                                                <Trash2 class="mr-2 size-4" />
-                                                Request delete
-                                            </Button>
-                                        </ResponsiveActionGroup>
-                                    </TableCell>
-                                </TableRow>
-                            </TableBody>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    @click="
+                                                        openEditDialog(
+                                                            transaction,
+                                                        )
+                                                    "
+                                                >
+                                                    <Pencil
+                                                        class="mr-2 size-4"
+                                                    />
+                                                    Request changes
+                                                </Button>
+                                                <Button
+                                                    variant="outline"
+                                                    size="sm"
+                                                    @click="
+                                                        openDeleteDialog(
+                                                            transaction,
+                                                        )
+                                                    "
+                                                >
+                                                    <Trash2
+                                                        class="mr-2 size-4"
+                                                    />
+                                                    Request removal
+                                                </Button>
+                                            </ResponsiveActionGroup>
+                                        </TableCell>
+                                    </TableRow>
+                                </TableBody>
                             </Table>
                         </div>
                     </div>

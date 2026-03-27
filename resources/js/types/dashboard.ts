@@ -33,12 +33,22 @@ export type DashboardAction = {
     icon: string | null;
 };
 
+export type DashboardAttentionBanner = {
+    tone: 'default' | 'info' | 'warning' | 'danger';
+    title: string;
+    description: string;
+    href: string | null;
+    action_label: string | null;
+};
+
 export type DashboardApprovalSection = {
     id: string;
     title: string;
     description: string;
     empty_message: string;
     items: ApprovalVoucher[];
+    cta_href?: string | null;
+    cta_label?: string | null;
 };
 
 export type DashboardTransactionSection = {
@@ -59,6 +69,7 @@ export type DashboardView = {
     description: string;
     primary_metrics: DashboardMetric[];
     quick_actions: DashboardAction[];
+    attention_banner?: DashboardAttentionBanner | null;
     primary_section: DashboardSection | null;
     secondary_section: DashboardSection | null;
 };

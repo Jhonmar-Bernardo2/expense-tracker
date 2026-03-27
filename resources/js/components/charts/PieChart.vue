@@ -10,6 +10,10 @@ type PieItem = {
 const props = defineProps<{
     items: PieItem[];
     size?: number;
+    valueFormat?: 'number' | 'currency';
+    currency?: string;
+    periodLabel?: string | null;
+    emptyStateText?: string;
 }>();
 
 const palette = [
@@ -24,7 +28,9 @@ const palette = [
 ];
 
 const normalized = computed(() => {
-    const safe = (props.items ?? []).filter((item) => Number.isFinite(item.value) && item.value > 0);
+    const safe = (props.items ?? []).filter(
+        (item) => Number.isFinite(item.value) && item.value > 0,
+    );
     const total = safe.reduce((acc, item) => acc + item.value, 0);
 
     return {
@@ -58,7 +64,21 @@ const slices = computed(() => {
         };
     });
 });
-const formattedTotal = computed(() => normalized.value.total.toLocaleString(undefined, { maximumFractionDigits: 2 }));
+const formatValue = (value: number) => {
+    const safeValue = Number.isFinite(value) ? value : 0;
+
+    if (props.valueFormat === 'currency') {
+        return new Intl.NumberFormat(undefined, {
+            style: 'currency',
+            currency: props.currency ?? 'PHP',
+            maximumFractionDigits: 2,
+        }).format(safeValue);
+    }
+
+    return safeValue.toLocaleString(undefined, { maximumFractionDigits: 2 });
+};
+
+const formattedTotal = computed(() => formatValue(normalized.value.total));
 const centerLabel = computed(() => {
     if (normalized.value.items.length === 1) {
         return normalized.value.items[0].label;
@@ -89,7 +109,10 @@ const chartStyle = computed(() => {
 const shareSummary = computed(() => {
     return normalized.value.items.map((item) => ({
         ...item,
-        percentage: normalized.value.total > 0 ? (item.value / normalized.value.total) * 100 : 0,
+        percentage:
+            normalized.value.total > 0
+                ? (item.value / normalized.value.total) * 100
+                : 0,
     }));
 });
 </script>
@@ -97,20 +120,32 @@ const shareSummary = computed(() => {
 <template>
     <div class="grid gap-8 xl:grid-cols-[300px_minmax(0,1fr)] xl:items-center">
         <div class="flex items-center justify-center">
-            <div v-if="slices.length === 0" class="flex h-[240px] w-[240px] items-center justify-center rounded-full border border-dashed text-sm text-muted-foreground">
-                No data
+            <div
+                v-if="slices.length === 0"
+                class="flex h-[240px] w-[240px] items-center justify-center rounded-full border border-dashed px-6 text-center text-sm text-muted-foreground"
+            >
+                {{ emptyStateText ?? 'No data available for this chart yet.' }}
             </div>
             <div
                 v-else
                 class="relative flex h-[240px] w-[240px] items-center justify-center rounded-full border border-white/5 shadow-[0_18px_50px_rgba(0,0,0,0.18)]"
                 :style="chartStyle"
             >
-                <div class="flex h-[118px] w-[118px] flex-col items-center justify-center rounded-full border border-white/10 bg-background text-center shadow-inner">
-                    <span class="max-w-[84px] truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <div
+                    class="flex h-[118px] w-[118px] flex-col items-center justify-center rounded-full border border-white/10 bg-background text-center shadow-inner"
+                >
+                    <span
+                        class="max-w-[84px] truncate text-[10px] font-semibold tracking-[0.18em] text-muted-foreground uppercase"
+                    >
                         {{ centerLabel }}
                     </span>
-                    <span class="mt-1 text-base font-semibold text-foreground">{{ formattedTotal }}</span>
-                    <span class="mt-1 text-[11px] text-muted-foreground">tracked spend</span>
+                    <span
+                        class="mt-1 text-base font-semibold text-foreground"
+                        >{{ formattedTotal }}</span
+                    >
+                    <span class="mt-1 text-[11px] text-muted-foreground"
+                        >tracked spend</span
+                    >
                 </div>
             </div>
         </div>
@@ -119,14 +154,30 @@ const shareSummary = computed(() => {
             <div class="flex items-center justify-between gap-3">
                 <div>
                     <div class="text-sm font-medium">Breakdown</div>
-                    <div class="text-xs text-muted-foreground">How each category contributes to this month&apos;s total</div>
+                    <div class="text-xs text-muted-foreground">
+                        How each category contributes to this month&apos;s total
+                    </div>
                 </div>
-                <span v-if="normalized.total > 0" class="rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground">
-                    {{ normalized.items.length }} categories
-                </span>
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                    <span
+                        v-if="periodLabel"
+                        class="rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground"
+                    >
+                        {{ periodLabel }}
+                    </span>
+                    <span
+                        v-if="normalized.total > 0"
+                        class="rounded-full border px-2.5 py-1 text-[11px] text-muted-foreground"
+                    >
+                        {{ normalized.items.length }} categories
+                    </span>
+                </div>
             </div>
-            <div v-if="normalized.total <= 0" class="text-sm text-muted-foreground">
-                Add transactions to see a breakdown.
+            <div
+                v-if="normalized.total <= 0"
+                class="text-sm text-muted-foreground"
+            >
+                {{ emptyStateText ?? 'Add transactions to see a breakdown.' }}
             </div>
             <ul v-else class="space-y-3 text-sm">
                 <li
@@ -136,23 +187,43 @@ const shareSummary = computed(() => {
                 >
                     <div class="flex items-start justify-between gap-4">
                         <div class="flex min-w-0 items-center gap-3">
-                            <span class="h-3 w-3 shrink-0 rounded-full ring-4 ring-background" :style="{ backgroundColor: item.color ?? palette[idx % palette.length] }" />
+                            <span
+                                class="h-3 w-3 shrink-0 rounded-full ring-4 ring-background"
+                                :style="{
+                                    backgroundColor:
+                                        item.color ??
+                                        palette[idx % palette.length],
+                                }"
+                            />
                             <div class="min-w-0">
-                                <div class="truncate font-medium">{{ item.label }}</div>
-                                <div class="text-[11px] text-muted-foreground">{{ item.percentage.toFixed(1) }}% of total spending</div>
+                                <div class="truncate font-medium">
+                                    {{ item.label }}
+                                </div>
+                                <div class="text-[11px] text-muted-foreground">
+                                    {{ item.percentage.toFixed(1) }}% of total
+                                    spending
+                                </div>
                             </div>
                         </div>
                         <div class="min-w-[96px] text-right">
-                            <div class="tabular-nums font-medium text-foreground">{{ item.value.toFixed(2) }}</div>
+                            <div
+                                class="font-medium text-foreground tabular-nums"
+                            >
+                                {{ formatValue(item.value) }}
+                            </div>
                         </div>
                     </div>
                     <div class="mt-3">
-                        <div class="h-2 overflow-hidden rounded-full bg-muted/70">
+                        <div
+                            class="h-2 overflow-hidden rounded-full bg-muted/70"
+                        >
                             <div
                                 class="h-full rounded-full"
                                 :style="{
                                     width: `${item.percentage}%`,
-                                    backgroundColor: item.color ?? palette[idx % palette.length],
+                                    backgroundColor:
+                                        item.color ??
+                                        palette[idx % palette.length],
                                 }"
                             />
                         </div>

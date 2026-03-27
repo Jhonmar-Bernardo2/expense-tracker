@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { displayDepartmentName } from '@/lib/plain-language';
 import { dashboard } from '@/routes';
 import { store as storeApprovalVoucher } from '@/routes/approval-vouchers';
 import {
@@ -125,47 +126,50 @@ const canRequestAllocations = computed(
     () => budgetAccess.value.can_request_allocations,
 );
 const hasApprovedAllocation = computed(() => props.active_allocation !== null);
-const selectedDepartmentLabel = computed(
-    () => props.financial_management_department.name,
+const selectedDepartmentLabel = computed(() =>
+    displayDepartmentName(
+        props.financial_management_department,
+        props.financial_management_department.name,
+    ),
 );
 const allocationMetrics = computed(() => [
     {
         id: 'budget-approved-allocation',
-        label: 'Approved allocation',
+        label: 'Approved monthly budget',
         value: formatCurrency(props.allocation_summary.approved_allocation),
-        helper: 'Approved monthly total from admin.',
+        helper: 'Approved monthly budget from admin.',
         icon: PiggyBank,
         tone: 'info' as const,
     },
     {
         id: 'budget-allocated-categories',
-        label: 'Allocated to categories',
+        label: 'Budget set for categories',
         value: formatCurrency(props.allocation_summary.total_allocated),
-        helper: 'Amount already assigned to category budgets.',
+        helper: 'Amount already set aside for categories.',
         icon: Wallet,
         tone: 'info' as const,
     },
     {
         id: 'budget-unallocated',
-        label: 'Unallocated',
+        label: 'Budget left to assign',
         value: formatCurrency(props.allocation_summary.total_unallocated),
-        helper: 'Still available to assign this period.',
+        helper: 'Still available to assign this month.',
         icon: ShieldCheck,
         tone: 'warning' as const,
     },
     {
         id: 'budget-spent',
-        label: 'Spent organization-wide',
+        label: 'Total spent',
         value: formatCurrency(props.allocation_summary.total_spent),
-        helper: 'Approved expense transactions counted centrally.',
+        helper: 'Approved spending for this month.',
         icon: Wallet,
         tone: 'warning' as const,
     },
     {
         id: 'budget-remaining',
-        label: 'Remaining after spending',
+        label: 'Budget left after spending',
         value: formatCurrency(props.allocation_summary.total_remaining),
-        helper: 'Approved allocation minus actual spending.',
+        helper: 'Approved monthly budget minus spending.',
         icon: Wallet,
         tone:
             props.allocation_summary.total_remaining < 0
@@ -193,13 +197,15 @@ const budgetStatus = (budget: Budget) => {
 };
 
 const allocationDialogTitle = computed(() =>
-    props.active_allocation ? 'Request allocation update' : 'Request allocation',
+    props.active_allocation
+        ? 'Update monthly budget request'
+        : 'Request monthly budget',
 );
 
 const allocationDialogDescription = computed(() =>
     props.active_allocation
-        ? 'Send an updated monthly total allocation to admin for approval.'
-        : 'Send a monthly total allocation request to admin before category budgets are assigned.',
+        ? 'Send an updated monthly budget to admin for approval.'
+        : 'Send a monthly budget request to admin before category budgets are assigned.',
 );
 
 const categoryDialogTitle = computed(() =>
@@ -208,8 +214,8 @@ const categoryDialogTitle = computed(() =>
 
 const categoryDialogDescription = computed(() =>
     editingBudget.value
-        ? 'Update the approved category allocation for this period.'
-        : 'Assign part of the approved monthly allocation to an expense category.',
+        ? 'Update this category budget for the selected period.'
+        : 'Set part of the approved monthly budget aside for an expense category.',
 );
 
 const applyFilters = () => {
@@ -352,13 +358,12 @@ const removeCategoryBudget = (budget: Budget) => {
                         <div class="space-y-1.5">
                             <CardTitle class="flex items-center gap-2 text-xl">
                                 <PiggyBank class="size-5" />
-                                Central Budget Workspace
+                                Monthly budget
                             </CardTitle>
                             <CardDescription>
-                                Admin approves the full monthly allocation.
-                                Financial Management then assigns category
-                                budgets for food, utilities, and other expense
-                                categories.
+                                Admin approves the monthly budget. The Finance
+                                Team then sets category budgets for each expense
+                                category.
                             </CardDescription>
                         </div>
 
@@ -375,8 +380,8 @@ const removeCategoryBudget = (budget: Budget) => {
                                         <Plus class="mr-2 size-4" />
                                         {{
                                             active_allocation
-                                                ? 'Request allocation update'
-                                                : 'Request allocation'
+                                                ? 'Update monthly budget request'
+                                                : 'Request monthly budget'
                                         }}
                                     </Button>
                                 </DialogTrigger>
@@ -406,9 +411,7 @@ const removeCategoryBudget = (budget: Budget) => {
                                             </div>
                                         </div>
 
-                                        <div
-                                            class="grid gap-4 sm:grid-cols-2"
-                                        >
+                                        <div class="grid gap-4 sm:grid-cols-2">
                                             <div class="grid gap-2">
                                                 <Label for="allocation-month"
                                                     >Month</Label
@@ -429,9 +432,7 @@ const removeCategoryBudget = (budget: Budget) => {
                                                         <SelectItem
                                                             v-for="month in months"
                                                             :key="month.value"
-                                                            :value="
-                                                                month.value
-                                                            "
+                                                            :value="month.value"
                                                         >
                                                             {{ month.label }}
                                                         </SelectItem>
@@ -482,7 +483,7 @@ const removeCategoryBudget = (budget: Budget) => {
 
                                         <div class="grid gap-2">
                                             <Label for="allocation-amount"
-                                                >Total monthly allocation</Label
+                                                >Monthly budget</Label
                                             >
                                             <Input
                                                 id="allocation-amount"
@@ -506,7 +507,7 @@ const removeCategoryBudget = (budget: Budget) => {
 
                                         <div class="grid gap-2">
                                             <Label for="allocation-remarks"
-                                                >Remarks</Label
+                                                >Notes</Label
                                             >
                                             <textarea
                                                 id="allocation-remarks"
@@ -526,8 +527,7 @@ const removeCategoryBudget = (budget: Budget) => {
                                                 type="button"
                                                 variant="secondary"
                                                 @click="
-                                                    isAllocationDialogOpen =
-                                                        false
+                                                    isAllocationDialogOpen = false
                                                 "
                                             >
                                                 Cancel
@@ -543,7 +543,7 @@ const removeCategoryBudget = (budget: Budget) => {
                                                         allocationForm.processing
                                                     "
                                                 />
-                                                Send to admin
+                                                Send request
                                             </Button>
                                         </DialogFooter>
                                     </form>
@@ -558,7 +558,7 @@ const removeCategoryBudget = (budget: Budget) => {
                                 @click="requestAllocationDelete"
                             >
                                 <Trash2 class="mr-2 size-4" />
-                                Request allocation delete
+                                Remove monthly budget request
                             </Button>
                         </ResponsiveActionGroup>
                     </CardHeader>
@@ -582,7 +582,7 @@ const removeCategoryBudget = (budget: Budget) => {
                     <CardHeader>
                         <CardTitle>Period</CardTitle>
                         <CardDescription>
-                            Review one central monthly finance period at a time.
+                            Review one month at a time.
                         </CardDescription>
                     </CardHeader>
                     <CardContent class="space-y-4">
@@ -652,13 +652,13 @@ const removeCategoryBudget = (budget: Budget) => {
                                 class="flex items-center gap-2 font-medium text-foreground"
                             >
                                 <ShieldCheck class="size-4" />
-                                Allocation status
+                                Monthly budget status
                             </div>
                             <p class="mt-2 text-muted-foreground">
                                 {{
                                     active_allocation
-                                        ? `Approved total allocation for this period: ${formatCurrency(active_allocation.amount_limit)}`
-                                        : 'No approved total allocation yet for this period.'
+                                        ? `Approved monthly budget for this period: ${formatCurrency(active_allocation.amount_limit)}`
+                                        : 'No approved monthly budget yet for this period.'
                                 }}
                             </p>
                         </div>
@@ -667,9 +667,9 @@ const removeCategoryBudget = (budget: Budget) => {
                             v-if="!canManageCategoryBudgets"
                             class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
                         >
-                            This page is read-only for admins. Only Financial
-                            Management can request allocations and edit
-                            category budgets.
+                            Admins can view this page, but only the Finance Team
+                            can request the monthly budget and edit category
+                            budgets.
                         </div>
                     </CardContent>
                 </Card>
@@ -733,9 +733,7 @@ const removeCategoryBudget = (budget: Budget) => {
                             </div>
 
                             <div class="grid gap-2">
-                                <Label for="category-budget-month"
-                                    >Month</Label
-                                >
+                                <Label for="category-budget-month">Month</Label>
                                 <Select v-model="categoryForm.month">
                                     <SelectTrigger id="category-budget-month">
                                         <SelectValue
@@ -783,7 +781,7 @@ const removeCategoryBudget = (budget: Budget) => {
 
                         <div class="grid gap-2">
                             <Label for="category-budget-amount"
-                                >Category allocation</Label
+                                >Category budget</Label
                             >
                             <Input
                                 id="category-budget-amount"
@@ -816,7 +814,7 @@ const removeCategoryBudget = (budget: Budget) => {
                                 {{
                                     editingBudget
                                         ? 'Save changes'
-                                        : 'Create budget'
+                                        : 'Add budget'
                                 }}
                             </Button>
                         </DialogFooter>
@@ -831,12 +829,12 @@ const removeCategoryBudget = (budget: Budget) => {
                     <div class="space-y-1.5">
                         <CardTitle class="flex items-center gap-2">
                             <Wallet class="size-4" />
-                            Category Budgets
+                            Budgets by category
                         </CardTitle>
                         <CardDescription>
                             {{
                                 budgets.length === 0
-                                    ? 'No category budgets assigned for this period yet.'
+                                    ? 'No category budgets have been added for this period yet.'
                                     : `${budgets.length} category budget${budgets.length === 1 ? '' : 's'} assigned for this period.`
                             }}
                         </CardDescription>
@@ -853,18 +851,20 @@ const removeCategoryBudget = (budget: Budget) => {
                 </CardHeader>
                 <CardContent class="space-y-4">
                     <div
-                        v-if="canManageCategoryBudgets && !hasApprovedAllocation"
+                        v-if="
+                            canManageCategoryBudgets && !hasApprovedAllocation
+                        "
                         class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
                     >
-                        Approve a monthly total allocation first before
-                        assigning category budgets.
+                        Approve a monthly budget first before assigning category
+                        budgets.
                     </div>
 
                     <div
                         v-if="budgets.length === 0"
                         class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
                     >
-                        No category budgets found for the current filters.
+                        No category budgets found for this period.
                     </div>
 
                     <div v-else class="space-y-3">
@@ -874,39 +874,65 @@ const removeCategoryBudget = (budget: Budget) => {
                                 :key="`budget-card-${budget.id}`"
                                 class="rounded-xl border p-4 shadow-sm"
                             >
-                                <div class="flex items-start justify-between gap-3">
+                                <div
+                                    class="flex items-start justify-between gap-3"
+                                >
                                     <div class="min-w-0">
-                                        <div class="font-medium text-foreground">
+                                        <div
+                                            class="font-medium text-foreground"
+                                        >
                                             {{ budget.category_name }}
                                         </div>
-                                        <div class="mt-1 text-sm text-muted-foreground">
+                                        <div
+                                            class="mt-1 text-sm text-muted-foreground"
+                                        >
                                             {{ selectedDepartmentLabel }}
                                         </div>
                                     </div>
-                                    <Badge :variant="budgetStatus(budget).variant">
+                                    <Badge
+                                        :variant="budgetStatus(budget).variant"
+                                    >
                                         {{ budgetStatus(budget).label }}
                                     </Badge>
                                 </div>
 
                                 <div class="mt-4 grid gap-3 sm:grid-cols-3">
                                     <div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Limit
                                         </div>
-                                        <div class="mt-1 font-medium tabular-nums">
-                                            {{ formatCurrency(budget.amount_limit) }}
+                                        <div
+                                            class="mt-1 font-medium tabular-nums"
+                                        >
+                                            {{
+                                                formatCurrency(
+                                                    budget.amount_limit,
+                                                )
+                                            }}
                                         </div>
                                     </div>
                                     <div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Spent
                                         </div>
-                                        <div class="mt-1 font-medium tabular-nums">
-                                            {{ formatCurrency(budget.amount_spent) }}
+                                        <div
+                                            class="mt-1 font-medium tabular-nums"
+                                        >
+                                            {{
+                                                formatCurrency(
+                                                    budget.amount_spent,
+                                                )
+                                            }}
                                         </div>
                                     </div>
                                     <div>
-                                        <div class="text-xs text-muted-foreground">
+                                        <div
+                                            class="text-xs text-muted-foreground"
+                                        >
                                             Remaining
                                         </div>
                                         <div
@@ -951,120 +977,136 @@ const removeCategoryBudget = (budget: Budget) => {
                             </div>
                         </div>
 
-                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                        <div
+                            class="hidden overflow-hidden rounded-lg border md:block"
+                        >
                             <div class="overflow-x-auto">
-                            <table
-                                class="min-w-full divide-y divide-border text-sm"
-                            >
-                                <thead
-                                    class="bg-muted/50 text-left text-muted-foreground"
+                                <table
+                                    class="min-w-full divide-y divide-border text-sm"
                                 >
-                                    <tr>
-                                        <th class="px-4 py-3 font-medium">
-                                            Category
-                                        </th>
-                                        <th class="px-4 py-3 font-medium">
-                                            Limit
-                                        </th>
-                                        <th class="px-4 py-3 font-medium">
-                                            Spent
-                                        </th>
-                                        <th class="px-4 py-3 font-medium">
-                                            Remaining
-                                        </th>
-                                        <th class="px-4 py-3 font-medium">
-                                            Status
-                                        </th>
-                                        <th
-                                            v-if="canManageCategoryBudgets"
-                                            class="px-4 py-3 text-right font-medium"
-                                        >
-                                            Actions
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody
-                                    class="divide-y divide-border bg-background"
-                                >
-                                    <tr
-                                        v-for="budget in budgets"
-                                        :key="budget.id"
+                                    <thead
+                                        class="bg-muted/50 text-left text-muted-foreground"
                                     >
-                                        <td
-                                            class="px-4 py-3 font-medium text-foreground"
+                                        <tr>
+                                            <th class="px-4 py-3 font-medium">
+                                                Category
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Limit
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Spent
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Remaining
+                                            </th>
+                                            <th class="px-4 py-3 font-medium">
+                                                Status
+                                            </th>
+                                            <th
+                                                v-if="canManageCategoryBudgets"
+                                                class="px-4 py-3 text-right font-medium"
+                                            >
+                                                Actions
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody
+                                        class="divide-y divide-border bg-background"
+                                    >
+                                        <tr
+                                            v-for="budget in budgets"
+                                            :key="budget.id"
                                         >
-                                            {{ budget.category_name }}
-                                        </td>
-                                        <td class="px-4 py-3 tabular-nums">
-                                            {{ budget.amount_limit.toFixed(2) }}
-                                        </td>
-                                        <td class="px-4 py-3 tabular-nums">
-                                            {{ budget.amount_spent.toFixed(2) }}
-                                        </td>
-                                        <td
-                                            class="px-4 py-3 tabular-nums"
-                                            :class="
-                                                budget.amount_remaining < 0
-                                                    ? 'text-destructive'
-                                                    : 'text-muted-foreground'
-                                            "
-                                        >
-                                            {{
-                                                budget.amount_remaining.toFixed(
-                                                    2,
-                                                )
-                                            }}
-                                        </td>
-                                        <td class="px-4 py-3">
-                                            <Badge
-                                                :variant="
-                                                    budgetStatus(budget).variant
+                                            <td
+                                                class="px-4 py-3 font-medium text-foreground"
+                                            >
+                                                {{ budget.category_name }}
+                                            </td>
+                                            <td class="px-4 py-3 tabular-nums">
+                                                {{
+                                                    budget.amount_limit.toFixed(
+                                                        2,
+                                                    )
+                                                }}
+                                            </td>
+                                            <td class="px-4 py-3 tabular-nums">
+                                                {{
+                                                    budget.amount_spent.toFixed(
+                                                        2,
+                                                    )
+                                                }}
+                                            </td>
+                                            <td
+                                                class="px-4 py-3 tabular-nums"
+                                                :class="
+                                                    budget.amount_remaining < 0
+                                                        ? 'text-destructive'
+                                                        : 'text-muted-foreground'
                                                 "
                                             >
-                                                {{ budgetStatus(budget).label }}
-                                            </Badge>
-                                        </td>
-                                        <td
-                                            v-if="canManageCategoryBudgets"
-                                            class="px-4 py-3"
-                                        >
-                                            <ResponsiveActionGroup
-                                                align="end"
-                                                :full-width-on-mobile="false"
+                                                {{
+                                                    budget.amount_remaining.toFixed(
+                                                        2,
+                                                    )
+                                                }}
+                                            </td>
+                                            <td class="px-4 py-3">
+                                                <Badge
+                                                    :variant="
+                                                        budgetStatus(budget)
+                                                            .variant
+                                                    "
+                                                >
+                                                    {{
+                                                        budgetStatus(budget)
+                                                            .label
+                                                    }}
+                                                </Badge>
+                                            </td>
+                                            <td
+                                                v-if="canManageCategoryBudgets"
+                                                class="px-4 py-3"
                                             >
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    @click="
-                                                        openEditCategoryDialog(
-                                                            budget,
-                                                        )
+                                                <ResponsiveActionGroup
+                                                    align="end"
+                                                    :full-width-on-mobile="
+                                                        false
                                                     "
                                                 >
-                                                    <Pencil
-                                                        class="mr-2 size-4"
-                                                    />
-                                                    Edit
-                                                </Button>
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    @click="
-                                                        removeCategoryBudget(
-                                                            budget,
-                                                        )
-                                                    "
-                                                >
-                                                    <Trash2
-                                                        class="mr-2 size-4"
-                                                    />
-                                                    Remove
-                                                </Button>
-                                            </ResponsiveActionGroup>
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        @click="
+                                                            openEditCategoryDialog(
+                                                                budget,
+                                                            )
+                                                        "
+                                                    >
+                                                        <Pencil
+                                                            class="mr-2 size-4"
+                                                        />
+                                                        Edit
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        @click="
+                                                            removeCategoryBudget(
+                                                                budget,
+                                                            )
+                                                        "
+                                                    >
+                                                        <Trash2
+                                                            class="mr-2 size-4"
+                                                        />
+                                                        Remove
+                                                    </Button>
+                                                </ResponsiveActionGroup>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
