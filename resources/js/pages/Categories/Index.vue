@@ -3,6 +3,7 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import { Pencil, Plus, Tags, Trash2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
+import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -346,8 +347,86 @@ const deleteCategory = (category: Category) => {
                         No categories found for the current filter.
                     </div>
 
-                    <div v-else class="overflow-hidden rounded-lg border">
-                        <div class="overflow-x-auto">
+                    <div v-else class="space-y-3">
+                        <div class="grid gap-3 md:hidden">
+                            <div
+                                v-for="category in categories"
+                                :key="`category-card-${category.id}`"
+                                class="rounded-xl border p-4 shadow-sm"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="font-medium text-foreground">
+                                            {{ category.name }}
+                                        </div>
+                                        <div class="mt-2">
+                                            <Badge
+                                                :variant="
+                                                    category.type === 'income'
+                                                        ? 'default'
+                                                        : 'secondary'
+                                                "
+                                                class="capitalize"
+                                            >
+                                                {{ category.type }}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Usage
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            {{ category.transaction_count }}
+                                            transactions
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Budget usage
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            {{ category.budget_count }} budgets
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ResponsiveActionGroup class="mt-4" align="end">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        @click="openEditDialog(category)"
+                                    >
+                                        <Pencil class="mr-2 size-4" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        :disabled="
+                                            !category.can_delete ||
+                                            deletingCategoryId === category.id
+                                        "
+                                        @click="deleteCategory(category)"
+                                    >
+                                        <Spinner
+                                            v-if="
+                                                deletingCategoryId ===
+                                                category.id
+                                            "
+                                        />
+                                        <Trash2 v-else class="mr-2 size-4" />
+                                        Delete
+                                    </Button>
+                                </ResponsiveActionGroup>
+                            </div>
+                        </div>
+
+                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                            <div class="overflow-x-auto">
                             <table
                                 class="min-w-full divide-y divide-border text-sm"
                             >
@@ -404,7 +483,10 @@ const deleteCategory = (category: Category) => {
                                             {{ category.budget_count }} budgets
                                         </td>
                                         <td class="px-4 py-3">
-                                            <div class="flex justify-end gap-2">
+                                            <ResponsiveActionGroup
+                                                align="end"
+                                                :full-width-on-mobile="false"
+                                            >
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -441,11 +523,12 @@ const deleteCategory = (category: Category) => {
                                                     />
                                                     Delete
                                                 </Button>
-                                            </div>
+                                            </ResponsiveActionGroup>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 </CardContent>

@@ -1,7 +1,7 @@
 import type { CategoryType } from './categories';
 import type { DepartmentSummary } from './users';
 
-export type ApprovalVoucherModule = 'transaction' | 'budget';
+export type ApprovalVoucherModule = 'transaction' | 'budget' | 'allocation';
 
 export type ApprovalVoucherAction = 'create' | 'update' | 'delete';
 
@@ -47,9 +47,17 @@ export type BudgetApprovalVoucherPayload = {
     amount_limit: number;
 };
 
+export type AllocationApprovalVoucherPayload = {
+    department_id: number;
+    month: number;
+    year: number;
+    amount_limit: number;
+};
+
 export type ApprovalVoucherPayload =
     | TransactionApprovalVoucherPayload
     | BudgetApprovalVoucherPayload
+    | AllocationApprovalVoucherPayload
     | null;
 
 export type ApprovalVoucherUserSummary = {

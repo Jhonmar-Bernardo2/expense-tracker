@@ -46,8 +46,17 @@ const currentPayload = computed(
 const isTransaction = computed(
     () => props.approval_voucher.module === 'transaction',
 );
+const isAllocation = computed(
+    () => props.approval_voucher.module === 'allocation',
+);
 const isDelete = computed(() => props.approval_voucher.action === 'delete');
 const actionSummary = computed(() => {
+    if (props.approval_voucher.module === 'allocation') {
+        return props.approval_voucher.action === 'delete'
+            ? 'Allocation removal request'
+            : 'Monthly allocation request';
+    }
+
     if (props.approval_voucher.action === 'create') {
         return 'New record request';
     }
@@ -69,7 +78,9 @@ const fields = computed<DisplayFieldKey[]>(() =>
               'transaction_date',
               'description',
           ]
-        : ['department_id', 'category_id', 'month', 'year', 'amount_limit'],
+        : isAllocation.value
+          ? ['department_id', 'month', 'year', 'amount_limit']
+          : ['department_id', 'category_id', 'month', 'year', 'amount_limit'],
 );
 
 const formatText = (value: string) =>
@@ -169,7 +180,7 @@ const fieldValue = (data: ApprovalVoucherPayload, key: DisplayFieldKey) => {
         return nameForDepartment(data.department_id);
     }
 
-    if (key === 'category_id') {
+    if (key === 'category_id' && 'category_id' in data) {
         return nameForCategory(data.category_id);
     }
 

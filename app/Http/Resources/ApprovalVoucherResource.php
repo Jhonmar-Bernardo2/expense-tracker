@@ -41,10 +41,7 @@ class ApprovalVoucherResource extends JsonResource
                 'can_approve' => $actor !== null ? $this->canApprove($actor) : false,
                 'can_reject' => $actor !== null ? $this->canReject($actor) : false,
             ],
-            'department' => $this->whenLoaded('department', fn () => [
-                'id' => $this->department->id,
-                'name' => $this->department->name,
-            ]),
+            'department' => $this->whenLoaded('department', fn () => $this->department->toSummaryArray()),
             'requested_by_user' => $this->whenLoaded('requestedBy', fn () => [
                 'id' => $this->requestedBy->id,
                 'name' => $this->requestedBy->name,

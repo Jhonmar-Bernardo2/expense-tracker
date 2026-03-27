@@ -1,8 +1,8 @@
 <?php
 
-use App\Http\Controllers\ApprovalVoucherController;
-use App\Http\Controllers\ApprovalVoucherAttachmentController;
 use App\Http\Controllers\Auth\AuthViewController;
+use App\Http\Controllers\ApprovalVoucherAttachmentController;
+use App\Http\Controllers\ApprovalVoucherController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\DashboardController;
@@ -54,7 +54,7 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
         ->name('notifications.read');
 
     Route::resource('budgets', BudgetController::class)
-        ->only(['index']);
+        ->only(['index', 'store', 'update', 'destroy']);
 
     Route::resource('transactions', TransactionController::class)
         ->only(['index']);
@@ -74,16 +74,16 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
     Route::post('approval-vouchers/{approvalVoucher}/submit', [ApprovalVoucherController::class, 'submit'])
         ->name('approval-vouchers.submit');
 
+    Route::patch('approval-vouchers/{approvalVoucher}/approve', [ApprovalVoucherController::class, 'approve'])
+        ->name('approval-vouchers.approve');
+
+    Route::patch('approval-vouchers/{approvalVoucher}/reject', [ApprovalVoucherController::class, 'reject'])
+        ->name('approval-vouchers.reject');
+
     Route::get('reports', [ReportsController::class, 'index'])
         ->name('reports.index');
 
     Route::middleware('admin')->group(function () {
-        Route::patch('approval-vouchers/{approvalVoucher}/approve', [ApprovalVoucherController::class, 'approve'])
-            ->name('approval-vouchers.approve');
-
-        Route::patch('approval-vouchers/{approvalVoucher}/reject', [ApprovalVoucherController::class, 'reject'])
-            ->name('approval-vouchers.reject');
-
         Route::resource('categories', CategoryController::class)
             ->only(['index', 'store', 'update', 'destroy']);
 

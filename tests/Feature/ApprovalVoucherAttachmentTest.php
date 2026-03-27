@@ -61,25 +61,19 @@ class ApprovalVoucherAttachmentTest extends TestCase
         Storage::disk('local')->assertExists($supportingAttachment->path);
     }
 
-    public function test_budget_request_can_be_created_with_supporting_documents(): void
+    public function test_allocation_request_can_be_created_with_supporting_documents(): void
     {
         Storage::fake('local');
 
-        $department = Department::factory()->create(['name' => 'Finance']);
+        $department = $this->financialManagementDepartment();
         $staff = User::factory()->create(['department_id' => $department->id]);
-        $category = Category::query()->create([
-            'name' => 'Office supplies',
-            'type' => 'expense',
-        ]);
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
-                'module' => 'budget',
+                'module' => 'allocation',
                 'action' => 'create',
-                'department_id' => $department->id,
-                'category_id' => $category->id,
                 'month' => 3,
                 'year' => 2026,
-                'amount_limit' => 1200,
+                'amount_limit' => 120000,
                 'remarks' => 'Vendor quote attached.',
                 'attachments' => [
                     UploadedFile::fake()->create('quote.png', 200, 'image/png'),
@@ -92,6 +86,10 @@ class ApprovalVoucherAttachmentTest extends TestCase
             ->where('kind', ApprovalVoucherAttachmentKind::SupportingDocument->value)
             ->sole();
 
+        $approvalVoucher = ApprovalVoucher::query()->latest('id')->firstOrFail();
+
+        $this->assertSame($department->id, $approvalVoucher->department_id);
+        $this->assertSame('allocation', $approvalVoucher->module->value);
         $this->assertSame('quote.png', $attachment->original_name);
         $this->assertSame('image/png', $attachment->mime_type);
         Storage::disk('local')->assertExists($attachment->path);
@@ -352,5 +350,12 @@ class ApprovalVoucherAttachmentTest extends TestCase
         ]);
 
         return [$approvalVoucher, $requester, $attachment];
+    }
+
+    private function financialManagementDepartment(): Department
+    {
+        return Department::query()
+            ->where('is_financial_management', true)
+            ->firstOrFail();
     }
 }

@@ -40,7 +40,7 @@ class SubmitApprovalVoucherService
         $approvalVoucher = $approvalVoucher->refresh();
 
         $this->activityLogService->logApprovalVoucherSubmitted($user, $approvalVoucher);
-        $this->approvalVoucherNotificationService->notifyAdminsOfSubmission($approvalVoucher);
+        $this->approvalVoucherNotificationService->notifyApproversOfSubmission($approvalVoucher);
 
         return $approvalVoucher;
     }

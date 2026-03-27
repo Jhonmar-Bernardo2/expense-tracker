@@ -50,10 +50,7 @@ class TransactionController extends Controller
             ),
             'departments' => $this->departmentScopeService
                 ->getOptionsFor($request->user())
-                ->map(fn ($department) => [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                ])
+                ->map(fn ($department) => $department->toSummaryArray())
                 ->values(),
             'filters' => [
                 'type' => $type?->value,

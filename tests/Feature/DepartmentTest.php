@@ -12,6 +12,18 @@ class DepartmentTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_financial_management_department_is_bootstrapped_and_locked(): void
+    {
+        $this->assertSame(1, Department::query()->where('is_financial_management', true)->count());
+
+        $this->assertDatabaseHas('departments', [
+            'name' => 'Financial Management',
+            'description' => 'Central budget department.',
+            'is_financial_management' => true,
+            'is_locked' => true,
+        ]);
+    }
+
     public function test_guests_are_redirected_to_the_login_page(): void
     {
         $department = Department::factory()->create();
@@ -63,7 +75,7 @@ class DepartmentTest extends TestCase
             ->assertForbidden();
     }
 
-    public function test_admin_can_view_department_index_with_expected_props(): void
+    public function test_admin_can_view_department_index_with_locked_financial_management_department(): void
     {
         $department = Department::factory()->create([
             'name' => 'Finance',
@@ -83,12 +95,16 @@ class DepartmentTest extends TestCase
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Departments/Index')
-                ->has('departments', 2)
+                ->has('departments', 3)
                 ->where('departments.0.name', 'Finance')
                 ->where('departments.0.description', 'Controls expenses.')
                 ->where('departments.0.user_count', 2)
                 ->where('departments.0.can_delete', false)
-                ->where('departments.1.name', 'General')
+                ->where('departments.1.name', 'Financial Management')
+                ->where('departments.1.is_financial_management', true)
+                ->where('departments.1.is_locked', true)
+                ->where('departments.1.can_delete', false)
+                ->where('departments.2.name', 'General')
             );
     }
 
@@ -126,7 +142,7 @@ class DepartmentTest extends TestCase
             ->assertSessionHasErrors('name');
     }
 
-    public function test_admin_can_update_a_department(): void
+    public function test_admin_can_update_a_non_locked_department(): void
     {
         $department = Department::factory()->create([
             'name' => 'Operations',
@@ -145,6 +161,34 @@ class DepartmentTest extends TestCase
             'id' => $department->id,
             'name' => 'Operations Team',
             'description' => 'Daily coordination',
+        ]);
+    }
+
+    public function test_admin_cannot_update_or_delete_the_locked_financial_management_department(): void
+    {
+        $financialManagementDepartment = $this->financialManagementDepartment();
+        $admin = $this->createAdmin();
+
+        $this->actingAs($admin)
+            ->from(route('departments.index'))
+            ->put(route('departments.update', $financialManagementDepartment), [
+                'name' => 'Renamed Financial Management',
+                'description' => 'Updated',
+            ])
+            ->assertRedirect(route('departments.index'))
+            ->assertSessionHas('error', 'The Financial Management department is protected and cannot be modified.');
+
+        $this->actingAs($admin)
+            ->from(route('departments.index'))
+            ->delete(route('departments.destroy', $financialManagementDepartment))
+            ->assertRedirect(route('departments.index'))
+            ->assertSessionHas('error', 'The Financial Management department is protected and cannot be deleted.');
+
+        $this->assertDatabaseHas('departments', [
+            'id' => $financialManagementDepartment->id,
+            'name' => 'Financial Management',
+            'is_financial_management' => true,
+            'is_locked' => true,
         ]);
     }
 
@@ -189,5 +233,12 @@ class DepartmentTest extends TestCase
         return User::factory()->admin()->create([
             'department_id' => $department->id,
         ]);
+    }
+
+    private function financialManagementDepartment(): Department
+    {
+        return Department::query()
+            ->where('is_financial_management', true)
+            ->firstOrFail();
     }
 }

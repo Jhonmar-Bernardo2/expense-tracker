@@ -2,6 +2,7 @@
 
 namespace App\Services\ApprovalVoucher;
 
+use App\Enums\ApprovalVoucherModule;
 use App\Enums\UserRole;
 use App\Models\ApprovalVoucher;
 use App\Models\User;
@@ -9,7 +10,7 @@ use App\Notifications\ApprovalVoucherAlertNotification;
 
 class ApprovalVoucherNotificationService
 {
-    public function notifyAdminsOfSubmission(ApprovalVoucher $approvalVoucher): void
+    public function notifyApproversOfSubmission(ApprovalVoucher $approvalVoucher): void
     {
         $title = 'Approval request submitted';
         $body = sprintf(
@@ -18,11 +19,9 @@ class ApprovalVoucherNotificationService
             $approvalVoucher->resolveSubject(),
         );
 
-        User::query()
-            ->where('role', UserRole::Admin->value)
-            ->where('is_active', true)
-            ->each(function (User $admin) use ($approvalVoucher, $title, $body): void {
-                $admin->notify(new ApprovalVoucherAlertNotification(
+        $this->submissionApproverQuery($approvalVoucher)
+            ->each(function (User $approver) use ($approvalVoucher, $title, $body): void {
+                $approver->notify(new ApprovalVoucherAlertNotification(
                     $title,
                     $body,
                     route('approval-vouchers.show', $approvalVoucher, false),
@@ -79,5 +78,24 @@ class ApprovalVoucherNotificationService
                 'rejection_reason' => $approvalVoucher->rejection_reason,
             ],
         ));
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Builder<User>
+     */
+    private function submissionApproverQuery(ApprovalVoucher $approvalVoucher)
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->when(
+                in_array($approvalVoucher->module, [ApprovalVoucherModule::Allocation, ApprovalVoucherModule::Budget], true),
+                fn ($query) => $query->where('role', UserRole::Admin->value),
+                fn ($query) => $query
+                    ->where('role', '!=', UserRole::Admin->value)
+                    ->whereHas(
+                        'department',
+                        fn ($departmentQuery) => $departmentQuery->where('is_financial_management', true),
+                    ),
+            );
     }
 }

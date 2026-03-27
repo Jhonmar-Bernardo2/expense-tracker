@@ -3,12 +3,16 @@ export type UserRole = 'admin' | 'staff';
 export type DepartmentSummary = {
     id: number;
     name: string;
+    is_financial_management: boolean;
+    is_locked: boolean;
 };
 
 export type Department = {
     id: number;
     name: string;
     description: string | null;
+    is_financial_management: boolean;
+    is_locked: boolean;
     user_count: number;
     can_delete: boolean;
     created_at: string | null;

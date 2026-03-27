@@ -18,11 +18,16 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_auto_submitting_a_voucher_notifies_active_admins_and_logs_submission(): void
+    public function test_auto_submitting_a_transaction_voucher_notifies_active_financial_management_approvers_and_logs_submission(): void
     {
-        [$department, $staff, $admin, $category] = $this->makeTransactionContext();
-        $secondAdmin = User::factory()->admin()->create();
-        $inactiveAdmin = User::factory()->admin()->inactive()->create();
+        [$department, $staff, $financialApprover, $category] = $this->makeTransactionContext();
+        $financialDepartment = $this->financialManagementDepartment();
+        $secondFinancialApprover = User::factory()->create([
+            'department_id' => $financialDepartment->id,
+        ]);
+        $inactiveFinancialApprover = User::factory()->inactive()->create([
+            'department_id' => $financialDepartment->id,
+        ]);
         $this->actingAs($staff)
             ->post(route('approval-vouchers.store'), [
                 'module' => 'transaction',
@@ -41,11 +46,11 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
         $approvalVoucher = ApprovalVoucher::query()->firstOrFail();
 
         $this->assertSame('pending_approval', $approvalVoucher->status->value);
-        $this->assertSame(1, $admin->fresh()->notifications()->count());
-        $this->assertSame(1, $secondAdmin->fresh()->notifications()->count());
-        $this->assertSame(0, $inactiveAdmin->fresh()->notifications()->count());
+        $this->assertSame(1, $financialApprover->fresh()->notifications()->count());
+        $this->assertSame(1, $secondFinancialApprover->fresh()->notifications()->count());
+        $this->assertSame(0, $inactiveFinancialApprover->fresh()->notifications()->count());
 
-        $notificationData = $admin->fresh()->notifications()->firstOrFail()->data;
+        $notificationData = $financialApprover->fresh()->notifications()->firstOrFail()->data;
 
         $this->assertSame('Approval request submitted', $notificationData['title'] ?? null);
         $this->assertSame($approvalVoucher->id, $notificationData['meta']['approval_voucher_id'] ?? null);
@@ -61,13 +66,13 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
 
     public function test_approving_a_voucher_notifies_the_requester_and_logs_the_applied_change(): void
     {
-        [$department, $staff, $admin, $category] = $this->makeTransactionContext();
+        [$department, $staff, $financialApprover, $category] = $this->makeTransactionContext();
         $approvalVoucher = $this->submitTransactionVoucher($staff, $department, $category, [
             'title' => 'Software subscription',
             'amount' => 1200,
         ]);
 
-        $this->actingAs($admin)
+        $this->actingAs($financialApprover)
             ->patch(route('approval-vouchers.approve', $approvalVoucher), [
                 'remarks' => 'Approved for payment.',
             ])
@@ -85,23 +90,23 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
         $this->assertDatabaseHas('activity_logs', [
             'subject_type' => $approvalVoucher->getMorphClass(),
             'subject_id' => $approvalVoucher->id,
-            'actor_id' => $admin->id,
+            'actor_id' => $financialApprover->id,
             'event' => 'approval_voucher.approved',
         ]);
         $this->assertDatabaseHas('activity_logs', [
             'subject_type' => $approvalVoucher->getMorphClass(),
             'subject_id' => $approvalVoucher->id,
-            'actor_id' => $admin->id,
+            'actor_id' => $financialApprover->id,
             'event' => 'transaction.applied_from_voucher',
         ]);
     }
 
     public function test_rejecting_a_voucher_notifies_the_requester_and_logs_rejection_metadata(): void
     {
-        [$department, $staff, $admin, $category] = $this->makeTransactionContext();
+        [$department, $staff, $financialApprover, $category] = $this->makeTransactionContext();
         $approvalVoucher = $this->submitTransactionVoucher($staff, $department, $category);
 
-        $this->actingAs($admin)
+        $this->actingAs($financialApprover)
             ->patch(route('approval-vouchers.reject', $approvalVoucher), [
                 'rejection_reason' => 'Missing supporting receipt.',
             ])
@@ -268,15 +273,17 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
      */
     private function makeTransactionContext(): array
     {
-        $department = Department::factory()->create(['name' => 'Finance']);
+        $department = Department::factory()->create(['name' => 'Operations']);
         $staff = User::factory()->create(['department_id' => $department->id]);
-        $admin = User::factory()->admin()->create(['department_id' => $department->id]);
+        $financialApprover = User::factory()->create([
+            'department_id' => $this->financialManagementDepartment()->id,
+        ]);
         $category = Category::query()->create([
             'name' => 'Software',
             'type' => 'expense',
         ]);
 
-        return [$department, $staff, $admin, $category];
+        return [$department, $staff, $financialApprover, $category];
     }
 
     /**
@@ -307,5 +314,12 @@ class ApprovalVoucherAuditNotificationsTest extends TestCase
             ->assertRedirect();
 
         return ApprovalVoucher::query()->latest('id')->firstOrFail();
+    }
+
+    private function financialManagementDepartment(): Department
+    {
+        return Department::query()
+            ->where('is_financial_management', true)
+            ->firstOrFail();
     }
 }

@@ -21,8 +21,11 @@ class DepartmentResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
+            'is_financial_management' => $this->isFinancialManagement(),
+            'is_locked' => $this->isLocked(),
             'user_count' => $this->whenCounted('users'),
-            'can_delete' => ($this->users_count ?? 0) === 0
+            'can_delete' => ! $this->isLocked()
+                && ($this->users_count ?? 0) === 0
                 && ($this->budgets_count ?? 0) === 0
                 && ($this->transactions_count ?? 0) === 0,
             'created_at' => $this->created_at?->toISOString(),

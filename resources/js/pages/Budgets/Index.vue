@@ -2,16 +2,18 @@
 import { Head, router, useForm, usePage } from '@inertiajs/vue3';
 import {
     Building2,
-    FileUp,
-    Paperclip,
     Pencil,
     PiggyBank,
     Plus,
+    ShieldCheck,
     Trash2,
-    X,
+    Wallet,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
+import DashboardMetricCard from '@/components/shared/DashboardMetricCard.vue';
+import DashboardMetricGrid from '@/components/shared/DashboardMetricGrid.vue';
+import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -41,14 +43,20 @@ import {
 } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { formatFileSize, SUPPORTING_DOCUMENT_ACCEPT } from '@/lib/utils';
 import { dashboard } from '@/routes';
 import { store as storeApprovalVoucher } from '@/routes/approval-vouchers';
-import { index } from '@/routes/budgets';
+import {
+    destroy as destroyBudget,
+    index,
+    store as storeBudget,
+    update as updateBudget,
+} from '@/routes/budgets';
 import type {
-    User,
-    BreadcrumbItem,
     Budget,
+    BudgetAccessShared,
+    BudgetAllocation,
+    BudgetAllocationSummary,
+    BreadcrumbItem,
     DepartmentOption,
     DepartmentScope,
 } from '@/types';
@@ -65,9 +73,12 @@ type MonthOption = {
 
 const props = defineProps<{
     budgets: Budget[];
+    active_allocation: BudgetAllocation | null;
+    allocation_summary: BudgetAllocationSummary;
     categories: BudgetCategoryOption[];
     departments: DepartmentOption[];
     department_scope: DepartmentScope;
+    financial_management_department: DepartmentOption;
     filters: {
         month: number;
         year: number;
@@ -83,225 +94,91 @@ const breadcrumbs: BreadcrumbItem[] = [
 ];
 
 const page = usePage();
-
-const isDialogOpen = ref(false);
-const editingBudget = ref<Budget | null>(null);
-const isDeleteDialogOpen = ref(false);
-const deletingBudget = ref<Budget | null>(null);
-const deletingBudgetId = ref<number | null>(null);
-const deleteAttachmentInput = ref<HTMLInputElement | null>(null);
+const budgetAccess = computed(
+    () => page.props.budget_access as BudgetAccessShared,
+);
 
 const selectedMonth = ref(props.filters.month);
 const selectedYear = ref(props.filters.year);
-const selectedDepartment = ref<number | 'all'>(
-    props.filters.department ?? 'all',
-);
+const isAllocationDialogOpen = ref(false);
+const isCategoryDialogOpen = ref(false);
+const editingBudget = ref<Budget | null>(null);
 
-const form = useForm({
-    department_id:
-        props.department_scope.department_id ??
-        props.departments[0]?.id ??
-        null,
+const allocationForm = useForm({
+    month: props.filters.month,
+    year: props.filters.year,
+    amount_limit: props.active_allocation?.amount_limit.toFixed(2) ?? '',
+    remarks: '',
+});
+
+const categoryForm = useForm({
     category_id: props.categories[0]?.id ?? null,
     month: props.filters.month,
     year: props.filters.year,
     amount_limit: '',
-    remarks: '',
 });
 
-const deleteForm = useForm({
-    department_id: null as number | null,
-    target_id: null as number | null,
-    remarks: '',
-    attachments: [] as File[],
-});
-
-const canSelectDepartment = computed(
-    () => props.department_scope.can_select_department,
+const canManageCategoryBudgets = computed(
+    () => budgetAccess.value.can_manage_category_budgets,
 );
-const currentUser = computed(() => page.props.auth.user as User | null);
-const canRequestBudget = computed(() => currentUser.value?.role === 'staff');
-
-const selectedDepartmentLabel = computed(() => {
-    if (props.department_scope.is_all_departments) {
-        return 'All departments';
-    }
-
-    return (
-        props.department_scope.selected_department?.name ??
-        'Assigned department'
-    );
-});
-
-const dialogTitle = computed(() =>
-    editingBudget.value ? 'Request budget update' : 'Request budget',
+const canRequestAllocations = computed(
+    () => budgetAccess.value.can_request_allocations,
 );
-
-const dialogDescription = computed(() =>
-    editingBudget.value
-        ? 'Submit a change request for this monthly spending limit.'
-        : 'Submit a new monthly spending limit request for one expense category.',
+const hasApprovedAllocation = computed(() => props.active_allocation !== null);
+const selectedDepartmentLabel = computed(
+    () => props.financial_management_department.name,
 );
+const allocationMetrics = computed(() => [
+    {
+        id: 'budget-approved-allocation',
+        label: 'Approved allocation',
+        value: formatCurrency(props.allocation_summary.approved_allocation),
+        helper: 'Approved monthly total from admin.',
+        icon: PiggyBank,
+        tone: 'info' as const,
+    },
+    {
+        id: 'budget-allocated-categories',
+        label: 'Allocated to categories',
+        value: formatCurrency(props.allocation_summary.total_allocated),
+        helper: 'Amount already assigned to category budgets.',
+        icon: Wallet,
+        tone: 'info' as const,
+    },
+    {
+        id: 'budget-unallocated',
+        label: 'Unallocated',
+        value: formatCurrency(props.allocation_summary.total_unallocated),
+        helper: 'Still available to assign this period.',
+        icon: ShieldCheck,
+        tone: 'warning' as const,
+    },
+    {
+        id: 'budget-spent',
+        label: 'Spent organization-wide',
+        value: formatCurrency(props.allocation_summary.total_spent),
+        helper: 'Approved expense transactions counted centrally.',
+        icon: Wallet,
+        tone: 'warning' as const,
+    },
+    {
+        id: 'budget-remaining',
+        label: 'Remaining after spending',
+        value: formatCurrency(props.allocation_summary.total_remaining),
+        helper: 'Approved allocation minus actual spending.',
+        icon: Wallet,
+        tone:
+            props.allocation_summary.total_remaining < 0
+                ? ('danger' as const)
+                : ('success' as const),
+    },
+]);
 
-const deleteAttachmentError = computed(() =>
-    findAttachmentError(deleteForm.errors),
-);
-
-const clearFileInput = (input: HTMLInputElement | null) => {
-    if (input !== null) {
-        input.value = '';
-    }
-};
-
-const findAttachmentError = (errors: Record<string, string>) =>
-    errors.attachments ??
-    Object.entries(errors).find(([key]) =>
-        key.startsWith('attachments.'),
-    )?.[1] ??
-    null;
-
-const mergeAttachments = (current: File[], files: FileList | null) =>
-    [...current, ...Array.from(files ?? [])].slice(0, 5);
-
-const handleDeleteAttachmentChange = (event: Event) => {
-    const target = event.target as HTMLInputElement;
-
-    deleteForm.attachments = mergeAttachments(
-        deleteForm.attachments,
-        target.files,
-    );
-    clearFileInput(target);
-};
-
-const removeDeleteAttachment = (index: number) => {
-    deleteForm.attachments = deleteForm.attachments.filter(
-        (_, currentIndex) => currentIndex !== index,
-    );
-};
-
-const applyFilters = () => {
-    router.get(
-        index.url({
-            query: {
-                month: selectedMonth.value,
-                year: selectedYear.value,
-                department:
-                    selectedDepartment.value === 'all'
-                        ? undefined
-                        : selectedDepartment.value,
-            },
-        }),
-        {},
-        {
-            preserveScroll: true,
-            preserveState: true,
-            replace: true,
-        },
-    );
-};
-
-const resetForm = () => {
-    form.reset();
-    form.clearErrors();
-    form.department_id =
-        props.department_scope.department_id ??
-        props.departments[0]?.id ??
-        null;
-    form.category_id = props.categories[0]?.id ?? null;
-    form.month = selectedMonth.value;
-    form.year = selectedYear.value;
-    form.remarks = '';
-};
-
-const openCreateDialog = () => {
-    editingBudget.value = null;
-    resetForm();
-
-    if (canSelectDepartment.value && selectedDepartment.value !== 'all') {
-        form.department_id = selectedDepartment.value;
-    }
-
-    isDialogOpen.value = true;
-};
-
-const openEditDialog = (budget: Budget) => {
-    editingBudget.value = budget;
-    form.department_id = budget.department_id;
-    form.category_id = budget.category_id;
-    form.month = budget.month;
-    form.year = budget.year;
-    form.amount_limit = budget.amount_limit.toFixed(2);
-    form.remarks = '';
-    form.clearErrors();
-    isDialogOpen.value = true;
-};
-
-const closeDialog = () => {
-    isDialogOpen.value = false;
-    editingBudget.value = null;
-    resetForm();
-};
-
-const resetDeleteForm = () => {
-    deleteForm.reset();
-    deleteForm.clearErrors();
-    deleteForm.department_id = null;
-    deleteForm.target_id = null;
-    deleteForm.remarks = '';
-    deleteForm.attachments = [];
-    deletingBudget.value = null;
-    clearFileInput(deleteAttachmentInput.value);
-};
-
-const openDeleteDialog = (budget: Budget) => {
-    deletingBudget.value = budget;
-    deleteForm.department_id = budget.department_id;
-    deleteForm.target_id = budget.id;
-    deleteForm.remarks = '';
-    deleteForm.attachments = [];
-    deleteForm.clearErrors();
-    clearFileInput(deleteAttachmentInput.value);
-    isDeleteDialogOpen.value = true;
-};
-
-const submit = (autoSubmit: boolean) => {
-    form.transform((data) => ({
-        ...data,
-        module: 'budget',
-        action: editingBudget.value ? 'update' : 'create',
-        target_id: editingBudget.value?.id ?? null,
-        auto_submit: autoSubmit,
-    })).post(storeApprovalVoucher().url, {
-        preserveScroll: true,
-        forceFormData: true,
-    });
-};
-
-const submitDeleteRequest = () => {
-    if (deletingBudget.value === null || deletingBudgetId.value !== null) {
-        return;
-    }
-
-    deletingBudgetId.value = deletingBudget.value.id;
-
-    deleteForm
-        .transform((data) => ({
-            ...data,
-            module: 'budget',
-            action: 'delete',
-            target_id: deletingBudget.value?.id ?? data.target_id,
-            department_id:
-                deletingBudget.value?.department_id ?? data.department_id,
-            auto_submit: true,
-        }))
-        .post(storeApprovalVoucher().url, {
-            preserveScroll: true,
-            forceFormData: true,
-            onFinish: () => {
-                deletingBudgetId.value = null;
-            },
-        });
-};
+const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('en-PH', {
+        style: 'currency',
+        currency: 'PHP',
+    }).format(value);
 
 const budgetStatus = (budget: Budget) => {
     if (budget.is_over_budget) {
@@ -313,6 +190,152 @@ const budgetStatus = (budget: Budget) => {
     }
 
     return { label: 'On track', variant: 'outline' as const };
+};
+
+const allocationDialogTitle = computed(() =>
+    props.active_allocation ? 'Request allocation update' : 'Request allocation',
+);
+
+const allocationDialogDescription = computed(() =>
+    props.active_allocation
+        ? 'Send an updated monthly total allocation to admin for approval.'
+        : 'Send a monthly total allocation request to admin before category budgets are assigned.',
+);
+
+const categoryDialogTitle = computed(() =>
+    editingBudget.value ? 'Edit category budget' : 'Add category budget',
+);
+
+const categoryDialogDescription = computed(() =>
+    editingBudget.value
+        ? 'Update the approved category allocation for this period.'
+        : 'Assign part of the approved monthly allocation to an expense category.',
+);
+
+const applyFilters = () => {
+    router.get(
+        index.url({
+            query: {
+                month: selectedMonth.value,
+                year: selectedYear.value,
+            },
+        }),
+        {},
+        {
+            preserveScroll: true,
+            preserveState: true,
+            replace: true,
+        },
+    );
+};
+
+const resetAllocationForm = () => {
+    allocationForm.reset();
+    allocationForm.clearErrors();
+    allocationForm.month = selectedMonth.value;
+    allocationForm.year = selectedYear.value;
+    allocationForm.amount_limit =
+        props.active_allocation?.amount_limit.toFixed(2) ?? '';
+    allocationForm.remarks = '';
+};
+
+const openAllocationDialog = () => {
+    resetAllocationForm();
+    isAllocationDialogOpen.value = true;
+};
+
+const submitAllocationRequest = () => {
+    allocationForm
+        .transform((data) => ({
+            ...data,
+            module: 'allocation',
+            action: props.active_allocation ? 'update' : 'create',
+            target_id: props.active_allocation?.id ?? null,
+            auto_submit: true,
+        }))
+        .post(storeApprovalVoucher().url, {
+            preserveScroll: true,
+        });
+};
+
+const requestAllocationDelete = () => {
+    if (props.active_allocation === null) {
+        return;
+    }
+
+    router.post(
+        storeApprovalVoucher().url,
+        {
+            module: 'allocation',
+            action: 'delete',
+            target_id: props.active_allocation.id,
+            auto_submit: true,
+        },
+        {
+            preserveScroll: true,
+        },
+    );
+};
+
+const resetCategoryForm = () => {
+    categoryForm.reset();
+    categoryForm.clearErrors();
+    categoryForm.category_id = props.categories[0]?.id ?? null;
+    categoryForm.month = selectedMonth.value;
+    categoryForm.year = selectedYear.value;
+    categoryForm.amount_limit = '';
+};
+
+const openCreateCategoryDialog = () => {
+    editingBudget.value = null;
+    resetCategoryForm();
+    isCategoryDialogOpen.value = true;
+};
+
+const openEditCategoryDialog = (budget: Budget) => {
+    editingBudget.value = budget;
+    categoryForm.category_id = budget.category_id;
+    categoryForm.month = budget.month;
+    categoryForm.year = budget.year;
+    categoryForm.amount_limit = budget.amount_limit.toFixed(2);
+    categoryForm.clearErrors();
+    isCategoryDialogOpen.value = true;
+};
+
+const closeCategoryDialog = () => {
+    isCategoryDialogOpen.value = false;
+    editingBudget.value = null;
+    resetCategoryForm();
+};
+
+const submitCategoryBudget = () => {
+    if (editingBudget.value === null) {
+        categoryForm.post(storeBudget().url, {
+            preserveScroll: true,
+            onSuccess: () => closeCategoryDialog(),
+        });
+
+        return;
+    }
+
+    categoryForm.put(updateBudget(editingBudget.value.id).url, {
+        preserveScroll: true,
+        onSuccess: () => closeCategoryDialog(),
+    });
+};
+
+const removeCategoryBudget = (budget: Budget) => {
+    if (
+        !window.confirm(
+            `Remove the ${budget.category_name} category budget for this period?`,
+        )
+    ) {
+        return;
+    }
+
+    router.delete(destroyBudget(budget.id).url, {
+        preserveScroll: true,
+    });
 };
 </script>
 
@@ -329,148 +352,74 @@ const budgetStatus = (budget: Budget) => {
                         <div class="space-y-1.5">
                             <CardTitle class="flex items-center gap-2 text-xl">
                                 <PiggyBank class="size-5" />
-                                Budgets
+                                Central Budget Workspace
                             </CardTitle>
                             <CardDescription>
-                                Final approved monthly limits by department.
-                                Changes now flow through approval vouchers.
+                                Admin approves the full monthly allocation.
+                                Financial Management then assigns category
+                                budgets for food, utilities, and other expense
+                                categories.
                             </CardDescription>
                         </div>
 
-                        <Dialog
-                            v-if="canRequestBudget"
-                            v-model:open="isDialogOpen"
-                        >
-                            <DialogTrigger as-child>
-                                <Button
-                                    class="w-full sm:w-auto"
-                                    @click="openCreateDialog"
-                                >
-                                    <Plus class="mr-2 size-4" />
-                                    Request budget
-                                </Button>
-                            </DialogTrigger>
-
-                            <DialogContent
-                                class="gap-3 border-border/80 bg-background p-4 sm:max-w-4xl sm:p-5"
+                        <ResponsiveActionGroup align="end">
+                            <Dialog
+                                v-if="canRequestAllocations"
+                                v-model:open="isAllocationDialogOpen"
                             >
-                                <DialogHeader>
-                                    <DialogTitle>{{ dialogTitle }}</DialogTitle>
-                                    <DialogDescription>
-                                        {{ dialogDescription }} Complete the
-                                        required fields, then review the
-                                        approval actions before submission.
-                                    </DialogDescription>
-                                </DialogHeader>
-
-                                <form
-                                    class="space-y-4"
-                                    @submit.prevent="submit(false)"
-                                >
-                                    <div
-                                        class="space-y-4 rounded-2xl border border-border/80 bg-muted/10 p-4"
+                                <DialogTrigger as-child>
+                                    <Button
+                                        class="w-full sm:w-auto"
+                                        @click="openAllocationDialog"
                                     >
-                                        <div class="space-y-1">
-                                            <h3 class="text-base font-semibold">
-                                                Request Details
-                                            </h3>
-                                            <p
-                                                class="text-sm text-muted-foreground"
-                                            >
-                                                Complete the budget details
-                                                first.
-                                            </p>
-                                        </div>
+                                        <Plus class="mr-2 size-4" />
+                                        {{
+                                            active_allocation
+                                                ? 'Request allocation update'
+                                                : 'Request allocation'
+                                        }}
+                                    </Button>
+                                </DialogTrigger>
 
-                                        <div
-                                            v-if="canSelectDepartment"
-                                            class="grid gap-2"
-                                        >
-                                            <Label for="budget-department"
-                                                >Department</Label
-                                            >
-                                            <Select
-                                                v-model="form.department_id"
-                                            >
-                                                <SelectTrigger
-                                                    id="budget-department"
-                                                    class="w-full"
-                                                >
-                                                    <SelectValue
-                                                        placeholder="Select a department"
-                                                    />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem
-                                                        v-for="department in departments"
-                                                        :key="department.id"
-                                                        :value="department.id"
-                                                    >
-                                                        {{ department.name }}
-                                                    </SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <InputError
-                                                :message="
-                                                    form.errors.department_id
-                                                "
-                                            />
-                                        </div>
+                                <DialogContent class="sm:max-w-lg">
+                                    <DialogHeader>
+                                        <DialogTitle>{{
+                                            allocationDialogTitle
+                                        }}</DialogTitle>
+                                        <DialogDescription>
+                                            {{ allocationDialogDescription }}
+                                        </DialogDescription>
+                                    </DialogHeader>
 
-                                        <div
-                                            v-else
-                                            class="rounded-lg border bg-background px-3 py-2.5 text-sm text-muted-foreground"
-                                        >
-                                            <span
-                                                class="font-medium text-foreground"
-                                                >Department:</span
+                                    <form
+                                        class="space-y-4"
+                                        @submit.prevent="
+                                            submitAllocationRequest
+                                        "
+                                    >
+                                        <div class="grid gap-2">
+                                            <Label>Department</Label>
+                                            <div
+                                                class="rounded-lg border bg-muted/20 px-3 py-2 text-sm text-muted-foreground"
                                             >
-                                            {{ selectedDepartmentLabel }}
-                                        </div>
-
-                                        <div
-                                            class="grid gap-4 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]"
-                                        >
-                                            <div class="grid gap-2">
-                                                <Label for="budget-category"
-                                                    >Category</Label
-                                                >
-                                                <Select
-                                                    v-model="form.category_id"
-                                                >
-                                                    <SelectTrigger
-                                                        id="budget-category"
-                                                        class="w-full"
-                                                    >
-                                                        <SelectValue
-                                                            placeholder="Select a category"
-                                                        />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem
-                                                            v-for="category in categories"
-                                                            :key="category.id"
-                                                            :value="category.id"
-                                                        >
-                                                            {{ category.name }}
-                                                        </SelectItem>
-                                                    </SelectContent>
-                                                </Select>
-                                                <InputError
-                                                    :message="
-                                                        form.errors.category_id
-                                                    "
-                                                />
+                                                {{ selectedDepartmentLabel }}
                                             </div>
+                                        </div>
 
+                                        <div
+                                            class="grid gap-4 sm:grid-cols-2"
+                                        >
                                             <div class="grid gap-2">
-                                                <Label for="budget-month"
+                                                <Label for="allocation-month"
                                                     >Month</Label
                                                 >
-                                                <Select v-model="form.month">
+                                                <Select
+                                                    v-model="
+                                                        allocationForm.month
+                                                    "
+                                                >
                                                     <SelectTrigger
-                                                        id="budget-month"
-                                                        class="w-full"
+                                                        id="allocation-month"
                                                     >
                                                         <SelectValue
                                                             placeholder="Select month"
@@ -480,25 +429,33 @@ const budgetStatus = (budget: Budget) => {
                                                         <SelectItem
                                                             v-for="month in months"
                                                             :key="month.value"
-                                                            :value="month.value"
+                                                            :value="
+                                                                month.value
+                                                            "
                                                         >
                                                             {{ month.label }}
                                                         </SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                                 <InputError
-                                                    :message="form.errors.month"
+                                                    :message="
+                                                        allocationForm.errors
+                                                            .month
+                                                    "
                                                 />
                                             </div>
 
                                             <div class="grid gap-2">
-                                                <Label for="budget-year"
+                                                <Label for="allocation-year"
                                                     >Year</Label
                                                 >
-                                                <Select v-model="form.year">
+                                                <Select
+                                                    v-model="
+                                                        allocationForm.year
+                                                    "
+                                                >
                                                     <SelectTrigger
-                                                        id="budget-year"
-                                                        class="w-full"
+                                                        id="allocation-year"
                                                     >
                                                         <SelectValue
                                                             placeholder="Select year"
@@ -515,18 +472,23 @@ const budgetStatus = (budget: Budget) => {
                                                     </SelectContent>
                                                 </Select>
                                                 <InputError
-                                                    :message="form.errors.year"
+                                                    :message="
+                                                        allocationForm.errors
+                                                            .year
+                                                    "
                                                 />
                                             </div>
                                         </div>
 
                                         <div class="grid gap-2">
-                                            <Label for="budget-amount"
-                                                >Monthly limit</Label
+                                            <Label for="allocation-amount"
+                                                >Total monthly allocation</Label
                                             >
                                             <Input
-                                                id="budget-amount"
-                                                v-model="form.amount_limit"
+                                                id="allocation-amount"
+                                                v-model="
+                                                    allocationForm.amount_limit
+                                                "
                                                 type="number"
                                                 min="0.01"
                                                 step="0.01"
@@ -536,311 +498,95 @@ const budgetStatus = (budget: Budget) => {
                                             />
                                             <InputError
                                                 :message="
-                                                    form.errors.amount_limit
+                                                    allocationForm.errors
+                                                        .amount_limit
                                                 "
                                             />
                                         </div>
 
                                         <div class="grid gap-2">
-                                            <Label for="budget-remarks"
+                                            <Label for="allocation-remarks"
                                                 >Remarks</Label
                                             >
                                             <textarea
-                                                id="budget-remarks"
-                                                v-model="form.remarks"
-                                                class="min-h-20 rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                id="allocation-remarks"
+                                                v-model="allocationForm.remarks"
+                                                class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                             />
                                             <InputError
-                                                :message="form.errors.remarks"
+                                                :message="
+                                                    allocationForm.errors
+                                                        .remarks
+                                                "
                                             />
                                         </div>
-                                    </div>
 
-                                    <div
-                                        class="space-y-4 rounded-2xl border border-border/80 bg-muted/10 p-4"
-                                    >
-                                        <div class="space-y-1">
-                                            <h3 class="text-base font-semibold">
-                                                Approval Action
-                                            </h3>
-                                            <p
-                                                class="text-sm text-muted-foreground"
-                                            >
-                                                Save a draft to continue later
-                                                or submit this request for
-                                                review.
-                                            </p>
-                                        </div>
-
-                                        <DialogFooter
-                                            class="gap-3 sm:justify-end"
-                                        >
+                                        <DialogFooter class="gap-2">
                                             <Button
                                                 type="button"
                                                 variant="secondary"
-                                                @click="closeDialog"
+                                                @click="
+                                                    isAllocationDialogOpen =
+                                                        false
+                                                "
                                             >
                                                 Cancel
                                             </Button>
                                             <Button
-                                                type="button"
-                                                variant="outline"
-                                                :disabled="form.processing"
-                                                @click="submit(false)"
+                                                type="submit"
+                                                :disabled="
+                                                    allocationForm.processing
+                                                "
                                             >
                                                 <Spinner
-                                                    v-if="form.processing"
+                                                    v-if="
+                                                        allocationForm.processing
+                                                    "
                                                 />
-                                                Save draft
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                :disabled="form.processing"
-                                                @click="submit(true)"
-                                            >
-                                                <Spinner
-                                                    v-if="form.processing"
-                                                />
-                                                Submit request
+                                                Send to admin
                                             </Button>
                                         </DialogFooter>
-                                    </div>
-                                </form>
-                            </DialogContent>
-                        </Dialog>
+                                    </form>
+                                </DialogContent>
+                            </Dialog>
 
-                        <Dialog
-                            v-model:open="isDeleteDialogOpen"
-                            @update:open="
-                                (open) => {
-                                    if (!open) {
-                                        resetDeleteForm();
-                                    }
-                                }
-                            "
-                        >
-                            <DialogContent class="sm:max-w-lg">
-                                <DialogHeader>
-                                    <DialogTitle>
-                                        Create delete request
-                                    </DialogTitle>
-                                    <DialogDescription>
-                                        Add context and optional supporting
-                                        files before archiving this budget
-                                        through approval.
-                                    </DialogDescription>
-                                </DialogHeader>
-
-                                <form
-                                    class="space-y-4"
-                                    @submit.prevent="submitDeleteRequest"
-                                >
-                                    <div
-                                        v-if="deletingBudget"
-                                        class="rounded-lg border bg-muted/20 p-4 text-sm"
-                                    >
-                                        <div class="font-medium">
-                                            {{ deletingBudget.category_name }}
-                                        </div>
-                                        <div class="mt-1 text-muted-foreground">
-                                            {{ deletingBudget.month }}/{{
-                                                deletingBudget.year
-                                            }}
-                                            Â-
-                                            {{
-                                                deletingBudget.department
-                                                    ?.name ??
-                                                selectedDepartmentLabel
-                                            }}
-                                        </div>
-                                        <div class="mt-2 text-muted-foreground">
-                                            Limit:
-                                            {{
-                                                deletingBudget.amount_limit.toFixed(
-                                                    2,
-                                                )
-                                            }}
-                                        </div>
-                                    </div>
-
-                                    <div class="grid gap-2">
-                                        <Label for="delete-budget-remarks"
-                                            >Remarks</Label
-                                        >
-                                        <textarea
-                                            id="delete-budget-remarks"
-                                            v-model="deleteForm.remarks"
-                                            class="min-h-24 rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                        />
-                                        <InputError
-                                            :message="deleteForm.errors.remarks"
-                                        />
-                                    </div>
-
-                                    <div class="grid gap-2">
-                                        <div
-                                            class="flex items-center justify-between gap-3"
-                                        >
-                                            <Label for="delete-budget-files"
-                                                >Supporting documents</Label
-                                            >
-                                            <span
-                                                class="text-xs text-muted-foreground"
-                                            >
-                                                {{
-                                                    deleteForm.attachments
-                                                        .length
-                                                }}/5 selected
-                                            </span>
-                                        </div>
-                                        <input
-                                            id="delete-budget-files"
-                                            ref="deleteAttachmentInput"
-                                            type="file"
-                                            class="block w-full cursor-pointer rounded-md border border-input bg-transparent px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-muted file:px-3 file:py-2 file:text-sm file:font-medium"
-                                            :accept="SUPPORTING_DOCUMENT_ACCEPT"
-                                            multiple
-                                            @change="
-                                                handleDeleteAttachmentChange
-                                            "
-                                        />
-                                        <p
-                                            class="flex items-center gap-2 text-xs text-muted-foreground"
-                                        >
-                                            <Paperclip class="size-3.5" />
-                                            PDF, JPG, PNG, or WEBP up to 10 MB
-                                            each.
-                                        </p>
-                                        <InputError
-                                            :message="deleteAttachmentError"
-                                        />
-                                        <div
-                                            v-if="
-                                                deleteForm.attachments.length >
-                                                0
-                                            "
-                                            class="space-y-2 rounded-lg border p-3"
-                                        >
-                                            <div
-                                                v-for="(
-                                                    attachment, index
-                                                ) in deleteForm.attachments"
-                                                :key="`${attachment.name}-${index}`"
-                                                class="flex items-start justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2"
-                                            >
-                                                <div
-                                                    class="flex items-start gap-2"
-                                                >
-                                                    <FileUp
-                                                        class="mt-0.5 size-4 text-muted-foreground"
-                                                    />
-                                                    <div>
-                                                        <div
-                                                            class="text-sm font-medium"
-                                                        >
-                                                            {{
-                                                                attachment.name
-                                                            }}
-                                                        </div>
-                                                        <div
-                                                            class="text-xs text-muted-foreground"
-                                                        >
-                                                            {{
-                                                                formatFileSize(
-                                                                    attachment.size,
-                                                                )
-                                                            }}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <Button
-                                                    type="button"
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    @click="
-                                                        removeDeleteAttachment(
-                                                            index,
-                                                        )
-                                                    "
-                                                >
-                                                    <X class="size-4" />
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <DialogFooter class="gap-2 sm:justify-end">
-                                        <Button
-                                            type="button"
-                                            variant="secondary"
-                                            @click="isDeleteDialogOpen = false"
-                                        >
-                                            Cancel
-                                        </Button>
-                                        <Button
-                                            type="submit"
-                                            variant="destructive"
-                                            :disabled="deleteForm.processing"
-                                        >
-                                            <Spinner
-                                                v-if="deleteForm.processing"
-                                            />
-                                            Create delete request
-                                        </Button>
-                                    </DialogFooter>
-                                </form>
-                            </DialogContent>
-                        </Dialog>
+                            <Button
+                                v-if="
+                                    canRequestAllocations && active_allocation
+                                "
+                                variant="outline"
+                                @click="requestAllocationDelete"
+                            >
+                                <Trash2 class="mr-2 size-4" />
+                                Request allocation delete
+                            </Button>
+                        </ResponsiveActionGroup>
                     </CardHeader>
+
+                    <CardContent>
+                        <DashboardMetricGrid>
+                            <DashboardMetricCard
+                                v-for="metric in allocationMetrics"
+                                :key="metric.id"
+                                :label="metric.label"
+                                :value="metric.value"
+                                :helper="metric.helper"
+                                :icon="metric.icon"
+                                :tone="metric.tone"
+                            />
+                        </DashboardMetricGrid>
+                    </CardContent>
                 </Card>
 
                 <Card class="border-sidebar-border/70 shadow-sm">
                     <CardHeader>
-                        <CardTitle>Filters</CardTitle>
-                        <CardDescription
-                            >Choose the period and department
-                            context.</CardDescription
-                        >
+                        <CardTitle>Period</CardTitle>
+                        <CardDescription>
+                            Review one central monthly finance period at a time.
+                        </CardDescription>
                     </CardHeader>
                     <CardContent class="space-y-4">
-                        <div v-if="canSelectDepartment" class="grid gap-2">
-                            <Label for="filter-budget-department"
-                                >Department</Label
-                            >
-                            <Select
-                                :model-value="selectedDepartment"
-                                @update:model-value="
-                                    selectedDepartment = $event as
-                                        | number
-                                        | 'all';
-                                    applyFilters();
-                                "
-                            >
-                                <SelectTrigger
-                                    id="filter-budget-department"
-                                    class="w-full"
-                                >
-                                    <SelectValue
-                                        placeholder="All departments"
-                                    />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all"
-                                        >All departments</SelectItem
-                                    >
-                                    <SelectItem
-                                        v-for="department in departments"
-                                        :key="department.id"
-                                        :value="department.id"
-                                    >
-                                        {{ department.name }}
-                                    </SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
                         <div
-                            v-else
                             class="flex items-center gap-2 rounded-lg border bg-muted/30 px-4 py-3 text-sm text-muted-foreground"
                         >
                             <Building2 class="size-4" />
@@ -857,10 +603,7 @@ const budgetStatus = (budget: Budget) => {
                                         applyFilters();
                                     "
                                 >
-                                    <SelectTrigger
-                                        id="filter-budget-month"
-                                        class="w-full"
-                                    >
+                                    <SelectTrigger id="filter-budget-month">
                                         <SelectValue
                                             placeholder="Select month"
                                         />
@@ -886,10 +629,7 @@ const budgetStatus = (budget: Budget) => {
                                         applyFilters();
                                     "
                                 >
-                                    <SelectTrigger
-                                        id="filter-budget-year"
-                                        class="w-full"
-                                    >
+                                    <SelectTrigger id="filter-budget-year">
                                         <SelectValue
                                             placeholder="Select year"
                                         />
@@ -906,30 +646,313 @@ const budgetStatus = (budget: Budget) => {
                                 </Select>
                             </div>
                         </div>
+
+                        <div class="rounded-lg border p-4 text-sm">
+                            <div
+                                class="flex items-center gap-2 font-medium text-foreground"
+                            >
+                                <ShieldCheck class="size-4" />
+                                Allocation status
+                            </div>
+                            <p class="mt-2 text-muted-foreground">
+                                {{
+                                    active_allocation
+                                        ? `Approved total allocation for this period: ${formatCurrency(active_allocation.amount_limit)}`
+                                        : 'No approved total allocation yet for this period.'
+                                }}
+                            </p>
+                        </div>
+
+                        <div
+                            v-if="!canManageCategoryBudgets"
+                            class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+                        >
+                            This page is read-only for admins. Only Financial
+                            Management can request allocations and edit
+                            category budgets.
+                        </div>
                     </CardContent>
                 </Card>
             </div>
 
+            <Dialog
+                v-if="canManageCategoryBudgets"
+                v-model:open="isCategoryDialogOpen"
+                @update:open="
+                    (open) => {
+                        if (!open) {
+                            closeCategoryDialog();
+                        }
+                    }
+                "
+            >
+                <DialogContent class="sm:max-w-xl">
+                    <DialogHeader>
+                        <DialogTitle>{{ categoryDialogTitle }}</DialogTitle>
+                        <DialogDescription>
+                            {{ categoryDialogDescription }}
+                        </DialogDescription>
+                    </DialogHeader>
+
+                    <form
+                        class="space-y-4"
+                        @submit.prevent="submitCategoryBudget"
+                    >
+                        <div
+                            class="rounded-lg border bg-muted/20 px-3 py-2 text-sm text-muted-foreground"
+                        >
+                            Department: {{ selectedDepartmentLabel }}
+                        </div>
+
+                        <div class="grid gap-4 sm:grid-cols-3">
+                            <div class="grid gap-2">
+                                <Label for="category-budget-category"
+                                    >Category</Label
+                                >
+                                <Select v-model="categoryForm.category_id">
+                                    <SelectTrigger
+                                        id="category-budget-category"
+                                    >
+                                        <SelectValue
+                                            placeholder="Select category"
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem
+                                            v-for="category in categories"
+                                            :key="category.id"
+                                            :value="category.id"
+                                        >
+                                            {{ category.name }}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <InputError
+                                    :message="categoryForm.errors.category_id"
+                                />
+                            </div>
+
+                            <div class="grid gap-2">
+                                <Label for="category-budget-month"
+                                    >Month</Label
+                                >
+                                <Select v-model="categoryForm.month">
+                                    <SelectTrigger id="category-budget-month">
+                                        <SelectValue
+                                            placeholder="Select month"
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem
+                                            v-for="month in months"
+                                            :key="month.value"
+                                            :value="month.value"
+                                        >
+                                            {{ month.label }}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <InputError
+                                    :message="categoryForm.errors.month"
+                                />
+                            </div>
+
+                            <div class="grid gap-2">
+                                <Label for="category-budget-year">Year</Label>
+                                <Select v-model="categoryForm.year">
+                                    <SelectTrigger id="category-budget-year">
+                                        <SelectValue
+                                            placeholder="Select year"
+                                        />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem
+                                            v-for="year in years"
+                                            :key="year"
+                                            :value="year"
+                                        >
+                                            {{ year }}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <InputError
+                                    :message="categoryForm.errors.year"
+                                />
+                            </div>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <Label for="category-budget-amount"
+                                >Category allocation</Label
+                            >
+                            <Input
+                                id="category-budget-amount"
+                                v-model="categoryForm.amount_limit"
+                                type="number"
+                                min="0.01"
+                                step="0.01"
+                                inputmode="decimal"
+                                placeholder="0.00"
+                                required
+                            />
+                            <InputError
+                                :message="categoryForm.errors.amount_limit"
+                            />
+                        </div>
+
+                        <DialogFooter class="gap-2">
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                @click="closeCategoryDialog"
+                            >
+                                Cancel
+                            </Button>
+                            <Button
+                                type="submit"
+                                :disabled="categoryForm.processing"
+                            >
+                                <Spinner v-if="categoryForm.processing" />
+                                {{
+                                    editingBudget
+                                        ? 'Save changes'
+                                        : 'Create budget'
+                                }}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
             <Card class="border-sidebar-border/70 shadow-sm">
-                <CardHeader>
-                    <CardTitle>Budget status</CardTitle>
-                    <CardDescription>
-                        {{ budgets.length }} budget{{
-                            budgets.length === 1 ? '' : 's'
-                        }}
-                        for {{ selectedDepartmentLabel.toLowerCase() }}.
-                    </CardDescription>
+                <CardHeader
+                    class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"
+                >
+                    <div class="space-y-1.5">
+                        <CardTitle class="flex items-center gap-2">
+                            <Wallet class="size-4" />
+                            Category Budgets
+                        </CardTitle>
+                        <CardDescription>
+                            {{
+                                budgets.length === 0
+                                    ? 'No category budgets assigned for this period yet.'
+                                    : `${budgets.length} category budget${budgets.length === 1 ? '' : 's'} assigned for this period.`
+                            }}
+                        </CardDescription>
+                    </div>
+
+                    <Button
+                        v-if="canManageCategoryBudgets"
+                        :disabled="!hasApprovedAllocation"
+                        @click="openCreateCategoryDialog"
+                    >
+                        <Plus class="mr-2 size-4" />
+                        Add category budget
+                    </Button>
                 </CardHeader>
-                <CardContent>
+                <CardContent class="space-y-4">
+                    <div
+                        v-if="canManageCategoryBudgets && !hasApprovedAllocation"
+                        class="rounded-lg border border-dashed p-4 text-sm text-muted-foreground"
+                    >
+                        Approve a monthly total allocation first before
+                        assigning category budgets.
+                    </div>
+
                     <div
                         v-if="budgets.length === 0"
                         class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
                     >
-                        No budgets found for the current filters.
+                        No category budgets found for the current filters.
                     </div>
 
-                    <div v-else class="overflow-hidden rounded-lg border">
-                        <div class="overflow-x-auto">
+                    <div v-else class="space-y-3">
+                        <div class="grid gap-3 md:hidden">
+                            <div
+                                v-for="budget in budgets"
+                                :key="`budget-card-${budget.id}`"
+                                class="rounded-xl border p-4 shadow-sm"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="font-medium text-foreground">
+                                            {{ budget.category_name }}
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            {{ selectedDepartmentLabel }}
+                                        </div>
+                                    </div>
+                                    <Badge :variant="budgetStatus(budget).variant">
+                                        {{ budgetStatus(budget).label }}
+                                    </Badge>
+                                </div>
+
+                                <div class="mt-4 grid gap-3 sm:grid-cols-3">
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Limit
+                                        </div>
+                                        <div class="mt-1 font-medium tabular-nums">
+                                            {{ formatCurrency(budget.amount_limit) }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Spent
+                                        </div>
+                                        <div class="mt-1 font-medium tabular-nums">
+                                            {{ formatCurrency(budget.amount_spent) }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Remaining
+                                        </div>
+                                        <div
+                                            class="mt-1 font-medium tabular-nums"
+                                            :class="
+                                                budget.amount_remaining < 0
+                                                    ? 'text-destructive'
+                                                    : 'text-muted-foreground'
+                                            "
+                                        >
+                                            {{
+                                                formatCurrency(
+                                                    budget.amount_remaining,
+                                                )
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ResponsiveActionGroup
+                                    v-if="canManageCategoryBudgets"
+                                    class="mt-4"
+                                    align="end"
+                                >
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        @click="openEditCategoryDialog(budget)"
+                                    >
+                                        <Pencil class="mr-2 size-4" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        @click="removeCategoryBudget(budget)"
+                                    >
+                                        <Trash2 class="mr-2 size-4" />
+                                        Remove
+                                    </Button>
+                                </ResponsiveActionGroup>
+                            </div>
+                        </div>
+
+                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                            <div class="overflow-x-auto">
                             <table
                                 class="min-w-full divide-y divide-border text-sm"
                             >
@@ -937,12 +960,6 @@ const budgetStatus = (budget: Budget) => {
                                     class="bg-muted/50 text-left text-muted-foreground"
                                 >
                                     <tr>
-                                        <th
-                                            v-if="canSelectDepartment"
-                                            class="px-4 py-3 font-medium"
-                                        >
-                                            Department
-                                        </th>
                                         <th class="px-4 py-3 font-medium">
                                             Category
                                         </th>
@@ -959,6 +976,7 @@ const budgetStatus = (budget: Budget) => {
                                             Status
                                         </th>
                                         <th
+                                            v-if="canManageCategoryBudgets"
                                             class="px-4 py-3 text-right font-medium"
                                         >
                                             Actions
@@ -972,12 +990,6 @@ const budgetStatus = (budget: Budget) => {
                                         v-for="budget in budgets"
                                         :key="budget.id"
                                     >
-                                        <td
-                                            v-if="canSelectDepartment"
-                                            class="px-4 py-3 text-muted-foreground"
-                                        >
-                                            {{ budget.department?.name ?? '-' }}
-                                        </td>
                                         <td
                                             class="px-4 py-3 font-medium text-foreground"
                                         >
@@ -1012,48 +1024,48 @@ const budgetStatus = (budget: Budget) => {
                                                 {{ budgetStatus(budget).label }}
                                             </Badge>
                                         </td>
-                                        <td class="px-4 py-3">
-                                            <div class="flex justify-end gap-2">
+                                        <td
+                                            v-if="canManageCategoryBudgets"
+                                            class="px-4 py-3"
+                                        >
+                                            <ResponsiveActionGroup
+                                                align="end"
+                                                :full-width-on-mobile="false"
+                                            >
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
                                                     @click="
-                                                        openEditDialog(budget)
+                                                        openEditCategoryDialog(
+                                                            budget,
+                                                        )
                                                     "
                                                 >
                                                     <Pencil
                                                         class="mr-2 size-4"
                                                     />
-                                                    Request update
+                                                    Edit
                                                 </Button>
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
-                                                    :disabled="
-                                                        deletingBudgetId ===
-                                                        budget.id
-                                                    "
                                                     @click="
-                                                        openDeleteDialog(budget)
+                                                        removeCategoryBudget(
+                                                            budget,
+                                                        )
                                                     "
                                                 >
-                                                    <Spinner
-                                                        v-if="
-                                                            deletingBudgetId ===
-                                                            budget.id
-                                                        "
-                                                    />
                                                     <Trash2
-                                                        v-else
                                                         class="mr-2 size-4"
                                                     />
-                                                    Request delete
+                                                    Remove
                                                 </Button>
-                                            </div>
+                                            </ResponsiveActionGroup>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 </CardContent>

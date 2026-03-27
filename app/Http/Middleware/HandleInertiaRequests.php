@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Repositories\ApprovalVoucherRepository;
+use App\Services\Budget\BudgetAccessService;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,7 +37,7 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
-        $user = $request->user()?->loadMissing('department:id,name');
+        $user = $request->user()?->loadMissing('department:id,name,is_financial_management,is_locked');
 
         return [
             ...parent::share($request),
@@ -55,10 +56,7 @@ class HandleInertiaRequests extends Middleware
                         'email_verified_at' => $user->email_verified_at?->toISOString(),
                         'department' => $user->department === null
                             ? null
-                            : [
-                                'id' => $user->department->id,
-                                'name' => $user->department->name,
-                            ],
+                            : $user->department->toSummaryArray(),
                     ],
             ],
             'flash' => [
@@ -74,6 +72,7 @@ class HandleInertiaRequests extends Middleware
                     ? 0
                     : app(ApprovalVoucherRepository::class)->countPendingFor($user),
             ],
+            'budget_access' => app(BudgetAccessService::class)->forUser($user),
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
         ];
     }

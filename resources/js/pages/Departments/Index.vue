@@ -3,6 +3,7 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import { Building2, Pencil, Plus, Trash2 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
+import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -240,8 +241,90 @@ const deleteDepartment = (department: Department) => {
                         No departments found yet.
                     </div>
 
-                    <div v-else class="overflow-hidden rounded-lg border">
-                        <div class="overflow-x-auto">
+                    <div v-else class="space-y-3">
+                        <div class="grid gap-3 md:hidden">
+                            <div
+                                v-for="department in departments"
+                                :key="`department-card-${department.id}`"
+                                class="rounded-xl border p-4 shadow-sm"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <div class="font-medium text-foreground">
+                                                {{ department.name }}
+                                            </div>
+                                            <span
+                                                v-if="department.is_locked"
+                                                class="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                                            >
+                                                Protected
+                                            </span>
+                                        </div>
+                                        <div class="mt-2 text-sm text-muted-foreground">
+                                            {{
+                                                department.description ||
+                                                'No description'
+                                            }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Assigned users
+                                        </div>
+                                        <div class="mt-1 font-medium">
+                                            {{ department.user_count }}
+                                        </div>
+                                    </div>
+                                    <div v-if="department.is_locked">
+                                        <div class="text-xs text-muted-foreground">
+                                            Note
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            Central budget department
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ResponsiveActionGroup class="mt-4" align="end">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        :disabled="department.is_locked"
+                                        @click="openEditDialog(department)"
+                                    >
+                                        <Pencil class="mr-2 size-4" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        :disabled="
+                                            department.is_locked ||
+                                            !department.can_delete ||
+                                            deletingDepartmentId ===
+                                                department.id
+                                        "
+                                        @click="deleteDepartment(department)"
+                                    >
+                                        <Spinner
+                                            v-if="
+                                                deletingDepartmentId ===
+                                                department.id
+                                            "
+                                        />
+                                        <Trash2 v-else class="mr-2 size-4" />
+                                        Delete
+                                    </Button>
+                                </ResponsiveActionGroup>
+                            </div>
+                        </div>
+
+                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                            <div class="overflow-x-auto">
                             <table
                                 class="min-w-full divide-y divide-border text-sm"
                             >
@@ -275,7 +358,15 @@ const deleteDepartment = (department: Department) => {
                                         <td
                                             class="px-4 py-3 font-medium text-foreground"
                                         >
-                                            {{ department.name }}
+                                            <div class="flex items-center gap-2">
+                                                <span>{{ department.name }}</span>
+                                                <span
+                                                    v-if="department.is_locked"
+                                                    class="rounded-full border px-2 py-0.5 text-xs text-muted-foreground"
+                                                >
+                                                    Protected
+                                                </span>
+                                            </div>
                                         </td>
                                         <td
                                             class="px-4 py-3 text-muted-foreground"
@@ -291,10 +382,16 @@ const deleteDepartment = (department: Department) => {
                                             {{ department.user_count }}
                                         </td>
                                         <td class="px-4 py-3">
-                                            <div class="flex justify-end gap-2">
+                                            <ResponsiveActionGroup
+                                                align="end"
+                                                :full-width-on-mobile="false"
+                                            >
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
+                                                    :disabled="
+                                                        department.is_locked
+                                                    "
                                                     @click="
                                                         openEditDialog(
                                                             department,
@@ -310,6 +407,7 @@ const deleteDepartment = (department: Department) => {
                                                     variant="outline"
                                                     size="sm"
                                                     :disabled="
+                                                        department.is_locked ||
                                                         !department.can_delete ||
                                                         deletingDepartmentId ===
                                                             department.id
@@ -332,11 +430,18 @@ const deleteDepartment = (department: Department) => {
                                                     />
                                                     Delete
                                                 </Button>
-                                            </div>
+                                            </ResponsiveActionGroup>
+                                            <p
+                                                v-if="department.is_locked"
+                                                class="mt-2 text-right text-xs text-muted-foreground"
+                                            >
+                                                Central budget department
+                                            </p>
                                         </td>
                                     </tr>
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 </CardContent>

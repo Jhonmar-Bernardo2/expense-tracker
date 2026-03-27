@@ -64,7 +64,7 @@ class StoreApprovalVoucherService
 
                 if ($shouldAutoSubmit) {
                     $this->activityLogService->logApprovalVoucherSubmitted($user, $approvalVoucher);
-                    $this->approvalVoucherNotificationService->notifyAdminsOfSubmission($approvalVoucher);
+                    $this->approvalVoucherNotificationService->notifyApproversOfSubmission($approvalVoucher);
                 }
 
                 return $approvalVoucher;

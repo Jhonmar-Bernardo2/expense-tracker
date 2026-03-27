@@ -76,6 +76,9 @@ const payload = computed(
 const isTransaction = computed(
     () => props.approval_voucher.module === 'transaction',
 );
+const isAllocation = computed(
+    () => props.approval_voucher.module === 'allocation',
+);
 const isDelete = computed(() => props.approval_voucher.action === 'delete');
 const canEdit = computed(() => props.approval_voucher.permissions.can_edit);
 const attachmentInput = ref<HTMLInputElement | null>(null);
@@ -90,7 +93,10 @@ const form = useForm({
         payload.value && 'type' in payload.value
             ? (payload.value.type as CategoryType)
             : ('expense' as CategoryType),
-    category_id: payload.value?.category_id ?? null,
+    category_id:
+        payload.value && 'category_id' in payload.value
+            ? payload.value.category_id
+            : null,
     title: payload.value && 'title' in payload.value ? payload.value.title : '',
     amount:
         payload.value && 'amount' in payload.value
@@ -226,7 +232,7 @@ const fieldValue = (data: ApprovalVoucherPayload, key: string) => {
         return nameForDepartment(data.department_id);
     }
 
-    if (key === 'category_id') {
+    if (key === 'category_id' && 'category_id' in data) {
         return nameForCategory(data.category_id);
     }
 
@@ -250,7 +256,9 @@ const fields = computed(() =>
               'transaction_date',
               'description',
           ]
-        : ['department_id', 'category_id', 'month', 'year', 'amount_limit'],
+        : isAllocation.value
+          ? ['department_id', 'month', 'year', 'amount_limit']
+          : ['department_id', 'category_id', 'month', 'year', 'amount_limit'],
 );
 const fieldLabel = (key: string) =>
     ({
@@ -265,6 +273,11 @@ const fieldLabel = (key: string) =>
         year: 'Year',
         amount_limit: 'Monthly limit',
     })[key] ?? key;
+const reviewTitle = computed(() =>
+    props.approval_voucher.module === 'transaction'
+        ? 'Financial Management Review'
+        : 'Admin Review',
+);
 
 const saveDraft = () =>
     form
@@ -521,7 +534,10 @@ const eventVariant = (event: string) => {
                         </CardHeader>
                         <CardContent>
                             <form class="space-y-4" @submit.prevent="saveDraft">
-                                <div v-if="!isDelete" class="grid gap-2">
+                                <div
+                                    v-if="isTransaction && !isDelete"
+                                    class="grid gap-2"
+                                >
                                     <Label>Department</Label>
                                     <Select v-model="form.department_id">
                                         <SelectTrigger
@@ -542,6 +558,18 @@ const eventVariant = (event: string) => {
                                     <InputError
                                         :message="form.errors.department_id"
                                     />
+                                </div>
+                                <div
+                                    v-else-if="!isDelete"
+                                    class="rounded-lg border bg-muted/20 px-3 py-2 text-sm text-muted-foreground"
+                                >
+                                    <span class="font-medium text-foreground">
+                                        Department:
+                                    </span>
+                                    {{
+                                        approval_voucher.department?.name ??
+                                        nameForDepartment(form.department_id)
+                                    }}
                                 </div>
                                 <template v-if="isTransaction && !isDelete">
                                     <div class="grid gap-4 sm:grid-cols-2">
@@ -635,7 +663,57 @@ const eventVariant = (event: string) => {
                                         />
                                     </div>
                                 </template>
-                                <template v-if="!isTransaction && !isDelete">
+                                <template
+                                    v-else-if="isAllocation && !isDelete"
+                                >
+                                    <div class="grid gap-4 sm:grid-cols-2">
+                                        <div class="grid gap-2">
+                                            <Label>Month</Label
+                                            ><Select v-model="form.month"
+                                                ><SelectTrigger
+                                                    ><SelectValue
+                                                        placeholder="Select month" /></SelectTrigger
+                                                ><SelectContent
+                                                    ><SelectItem
+                                                        v-for="month in 12"
+                                                        :key="month"
+                                                        :value="month"
+                                                        >{{
+                                                            monthLabel(month)
+                                                        }}</SelectItem
+                                                    ></SelectContent
+                                                ></Select
+                                            ><InputError
+                                                :message="form.errors.month"
+                                            />
+                                        </div>
+                                        <div class="grid gap-2">
+                                            <Label>Year</Label
+                                            ><Input
+                                                v-model="form.year"
+                                                type="number"
+                                                min="1900"
+                                                max="2100"
+                                            /><InputError
+                                                :message="form.errors.year"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div class="grid gap-2">
+                                        <Label>Monthly limit</Label
+                                        ><Input
+                                            v-model="form.amount_limit"
+                                            type="number"
+                                            min="0.01"
+                                            step="0.01"
+                                        /><InputError
+                                            :message="form.errors.amount_limit"
+                                        />
+                                    </div>
+                                </template>
+                                <template
+                                    v-else-if="!isTransaction && !isDelete"
+                                >
                                     <div class="grid gap-2">
                                         <Label>Category</Label>
                                         <Select v-model="form.category_id">
@@ -746,7 +824,7 @@ const eventVariant = (event: string) => {
                         class="border-sidebar-border/70 shadow-sm"
                     >
                         <CardHeader>
-                            <CardTitle>Admin Review</CardTitle>
+                            <CardTitle>{{ reviewTitle }}</CardTitle>
                         </CardHeader>
                         <CardContent class="space-y-4">
                             <div

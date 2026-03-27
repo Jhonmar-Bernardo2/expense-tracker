@@ -7,8 +7,10 @@ use App\Enums\ApprovalVoucherModule;
 use App\Enums\ApprovalVoucherStatus;
 use App\Models\ApprovalVoucher;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 
 class ApprovalVoucherRepository
 {
@@ -21,11 +23,11 @@ class ApprovalVoucherRepository
 
         return $this->visibleQuery($user)
             ->when(
-                $user->isAdmin() && $departmentId !== null,
+                ($user->isAdmin() || $user->isFinancialManagement()) && $departmentId !== null,
                 fn (Builder $query) => $query->where('department_id', $departmentId),
             )
             ->with([
-                'department:id,name',
+                'department:id,name,is_financial_management,is_locked',
                 'requestedBy:id,name,email',
                 'approvedBy:id,name,email',
             ])
@@ -80,9 +82,115 @@ class ApprovalVoucherRepository
 
     public function countPendingFor(User $user): int
     {
+        $query = $this->visibleQuery($user)
+            ->where('status', ApprovalVoucherStatus::PendingApproval->value)
+            ->where('requested_by', '!=', $user->id);
+
+        if ($user->isAdmin()) {
+            return $query
+                ->whereIn('module', [
+                    ApprovalVoucherModule::Budget->value,
+                    ApprovalVoucherModule::Allocation->value,
+                ])
+                ->count();
+        }
+
+        if ($user->isFinancialManagement()) {
+            return $query
+                ->where('module', ApprovalVoucherModule::Transaction->value)
+                ->count();
+        }
+
+        return 0;
+    }
+
+    public function countPendingForModule(User $user, ApprovalVoucherModule $module): int
+    {
         return $this->visibleQuery($user)
             ->where('status', ApprovalVoucherStatus::PendingApproval->value)
+            ->where('requested_by', '!=', $user->id)
+            ->where('module', $module->value)
             ->count();
+    }
+
+    /**
+     * @return Collection<int, ApprovalVoucher>
+     */
+    public function getRecentByModuleForDashboard(
+        User $user,
+        ApprovalVoucherModule $module,
+        int $limit = 5,
+        ?ApprovalVoucherStatus $status = null,
+        bool $excludeRequester = false,
+    ): Collection {
+        return $this->visibleQuery($user)
+            ->with($this->summaryRelations())
+            ->where('module', $module->value)
+            ->when(
+                $status !== null,
+                fn (Builder $query) => $query->where('status', $status->value),
+            )
+            ->when(
+                $excludeRequester,
+                fn (Builder $query) => $query->where('requested_by', '!=', $user->id),
+            )
+            ->orderByRaw(sprintf(
+                "CASE WHEN status = '%s' THEN 0 ELSE 1 END",
+                ApprovalVoucherStatus::PendingApproval->value,
+            ))
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * @return Collection<int, ApprovalVoucher>
+     */
+    public function getRecentRequestsByRequester(User $user, int $limit = 5): Collection
+    {
+        return ApprovalVoucher::query()
+            ->with($this->summaryRelations())
+            ->where('requested_by', $user->id)
+            ->orderByRaw(sprintf(
+                "CASE WHEN status = '%s' THEN 0 ELSE 1 END",
+                ApprovalVoucherStatus::PendingApproval->value,
+            ))
+            ->orderByDesc('updated_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /**
+     * @return array{pending: int, approved_this_month: int, rejected_this_month: int}
+     */
+    public function getRequesterDashboardCounts(User $user, CarbonImmutable $date): array
+    {
+        $pending = ApprovalVoucher::query()
+            ->where('requested_by', $user->id)
+            ->where('status', ApprovalVoucherStatus::PendingApproval->value)
+            ->count();
+
+        $approvedThisMonth = ApprovalVoucher::query()
+            ->where('requested_by', $user->id)
+            ->where('status', ApprovalVoucherStatus::Approved->value)
+            ->whereMonth('approved_at', $date->month)
+            ->whereYear('approved_at', $date->year)
+            ->count();
+
+        $rejectedThisMonth = ApprovalVoucher::query()
+            ->where('requested_by', $user->id)
+            ->where('status', ApprovalVoucherStatus::Rejected->value)
+            ->whereMonth('rejected_at', $date->month)
+            ->whereYear('rejected_at', $date->year)
+            ->count();
+
+        return [
+            'pending' => $pending,
+            'approved_this_month' => $approvedThisMonth,
+            'rejected_this_month' => $rejectedThisMonth,
+        ];
     }
 
     public function formatVoucherNumber(ApprovalVoucher $approvalVoucher): string
@@ -102,7 +210,26 @@ class ApprovalVoucherRepository
         return ApprovalVoucher::query()
             ->when(
                 ! $user->isAdmin(),
-                fn (Builder $query) => $query->where('requested_by', $user->id),
+                function (Builder $query) use ($user): void {
+                    $query->where(function (Builder $scopeQuery) use ($user): void {
+                        $scopeQuery->where('requested_by', $user->id);
+
+                        if (! $user->isFinancialManagement()) {
+                            return;
+                        }
+
+                        $scopeQuery
+                            ->orWhere('module', ApprovalVoucherModule::Transaction->value)
+                            ->orWhere(function (Builder $centralBudgetQuery) use ($user): void {
+                                $centralBudgetQuery
+                                    ->whereIn('module', [
+                                        ApprovalVoucherModule::Budget->value,
+                                        ApprovalVoucherModule::Allocation->value,
+                                    ])
+                                    ->where('department_id', $user->department_id);
+                            });
+                    });
+                },
             );
     }
 
@@ -112,10 +239,22 @@ class ApprovalVoucherRepository
     private function detailRelations(): array
     {
         return [
-            'department:id,name',
+            'department:id,name,is_financial_management,is_locked',
             'requestedBy:id,name,email',
             'approvedBy:id,name,email',
             'supportingAttachments',
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function summaryRelations(): array
+    {
+        return [
+            'department:id,name,is_financial_management,is_locked',
+            'requestedBy:id,name,email',
+            'approvedBy:id,name,email',
         ];
     }
 }

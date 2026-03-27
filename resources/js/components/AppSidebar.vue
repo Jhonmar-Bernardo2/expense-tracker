@@ -34,7 +34,7 @@ import { index as departments } from '@/routes/departments';
 import { index as reports } from '@/routes/reports';
 import { index as transactions } from '@/routes/transactions';
 import { index as users } from '@/routes/users';
-import type { NavItem, User } from '@/types';
+import type { BudgetAccessShared, NavItem, User } from '@/types';
 import type { WorkflowShared } from '@/types/notifications';
 
 const page = usePage();
@@ -46,38 +46,47 @@ const workflow = computed(
             pending_approval_vouchers_count: 0,
         }) as WorkflowShared,
 );
+const budgetAccess = computed(
+    () => page.props.budget_access as BudgetAccessShared,
+);
 
-const mainNavItems = computed<NavItem[]>(() => [
-    {
-        title: 'Dashboard',
-        href: dashboard(),
-        icon: LayoutGrid,
-    },
-    {
-        title: 'Transactions',
-        href: transactions(),
-        icon: Receipt,
-    },
-    {
-        title: 'Approval Vouchers',
-        href: approvalVouchers(),
-        icon: FileText,
-        badge:
-            workflow.value.pending_approval_vouchers_count > 0
-                ? workflow.value.pending_approval_vouchers_count
-                : null,
-    },
-    {
-        title: 'Reports',
-        href: reports(),
-        icon: BarChart3,
-    },
-    {
-        title: 'Budgets',
-        href: budgets(),
-        icon: PiggyBank,
-    },
-]);
+const mainNavItems = computed<NavItem[]>(() =>
+    [
+        {
+            title: 'Dashboard',
+            href: dashboard(),
+            icon: LayoutGrid,
+        },
+        {
+            title: 'Transactions',
+            href: transactions(),
+            icon: Receipt,
+        },
+        {
+            title: 'Approval Vouchers',
+            href: approvalVouchers(),
+            icon: FileText,
+            badge:
+                workflow.value.pending_approval_vouchers_count > 0
+                    ? workflow.value.pending_approval_vouchers_count
+                    : null,
+        },
+        {
+            title: 'Reports',
+            href: reports(),
+            icon: BarChart3,
+        },
+        ...(budgetAccess.value.can_view_page
+            ? [
+                  {
+                      title: 'Budgets',
+                      href: budgets(),
+                      icon: PiggyBank,
+                  },
+              ]
+            : []),
+    ] satisfies NavItem[],
+);
 
 const footerNavItems: NavItem[] = [
     {

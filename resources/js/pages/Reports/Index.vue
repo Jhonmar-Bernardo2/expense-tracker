@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Head, router } from '@inertiajs/vue3';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import {
     BarChart3,
     Building2,
@@ -11,6 +11,9 @@ import {
 import { computed, ref } from 'vue';
 import BarChart from '@/components/charts/BarChart.vue';
 import PieChart from '@/components/charts/PieChart.vue';
+import DashboardMetricCard from '@/components/shared/DashboardMetricCard.vue';
+import DashboardMetricGrid from '@/components/shared/DashboardMetricGrid.vue';
+import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +43,8 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { index } from '@/routes/reports';
 import type {
+    BudgetAccessShared,
+    BudgetAllocation,
     BreadcrumbItem,
     Budget,
     DepartmentOption,
@@ -75,12 +80,27 @@ const props = defineProps<{
         months: ReportMonthOption[];
         years: number[];
     };
+    budget_summary: {
+        scope_label: string;
+        financial_management_department: DepartmentOption;
+        active_allocation: BudgetAllocation | null;
+        current_month_summary: {
+            approved_allocation: number;
+            total_allocated: number;
+            total_unallocated: number;
+            total_budgeted: number;
+            total_spent: number;
+            total_remaining: number;
+            categories_over_budget: number;
+        };
+    } | null;
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
     { title: 'Reports', href: index() },
 ];
+const page = usePage();
 
 const selectedMonth = ref(props.filters.month);
 const selectedYear = ref(props.filters.year);
@@ -97,6 +117,96 @@ const departmentLabel = computed(() =>
         : (props.department_scope.selected_department?.name ??
           'Assigned department'),
 );
+const budgetAccess = computed(
+    () => page.props.budget_access as BudgetAccessShared,
+);
+
+const summaryMetrics = computed(() => [
+    {
+        id: 'reports-monthly-income',
+        label: 'Monthly income',
+        value: formatCurrency(props.summary.monthly.income),
+        helper: `Selected month: ${monthTitle.value}`,
+        icon: TrendingUp,
+        tone: 'success' as const,
+    },
+    {
+        id: 'reports-monthly-expenses',
+        label: 'Monthly expenses',
+        value: formatCurrency(props.summary.monthly.expenses),
+        helper: `Selected month: ${monthTitle.value}`,
+        icon: TrendingDown,
+        tone: 'warning' as const,
+    },
+    {
+        id: 'reports-monthly-balance',
+        label: 'Monthly balance',
+        value: formatCurrency(props.summary.monthly.balance),
+        helper: 'Income minus expenses for the selected month.',
+        icon: Wallet,
+        tone: props.summary.monthly.balance < 0 ? ('danger' as const) : ('info' as const),
+    },
+    {
+        id: 'reports-yearly-balance',
+        label: 'Yearly balance',
+        value: formatCurrency(props.summary.yearly.balance),
+        helper: `Rolling total for ${selectedYear.value}.`,
+        icon: BarChart3,
+        tone: props.summary.yearly.balance < 0 ? ('danger' as const) : ('info' as const),
+    },
+]);
+
+const centralBudgetMetrics = computed(() => {
+    if (props.budget_summary === null) {
+        return [];
+    }
+
+    return [
+        {
+            id: 'reports-budget-approved',
+            label: 'Approved allocation',
+            value: formatCurrency(
+                props.budget_summary.current_month_summary.approved_allocation,
+            ),
+            helper: 'Approved monthly total for central finance.',
+            icon: Wallet,
+            tone: 'info' as const,
+        },
+        {
+            id: 'reports-budget-allocated',
+            label: 'Allocated to categories',
+            value: formatCurrency(
+                props.budget_summary.current_month_summary.total_allocated,
+            ),
+            helper: 'Amount already assigned to category budgets.',
+            icon: TrendingUp,
+            tone: 'info' as const,
+        },
+        {
+            id: 'reports-budget-spent',
+            label: 'Spent',
+            value: formatCurrency(
+                props.budget_summary.current_month_summary.total_spent,
+            ),
+            helper: 'Approved expense transactions for the period.',
+            icon: TrendingDown,
+            tone: 'warning' as const,
+        },
+        {
+            id: 'reports-budget-remaining',
+            label: 'Remaining',
+            value: formatCurrency(
+                props.budget_summary.current_month_summary.total_remaining,
+            ),
+            helper: 'Approved allocation minus actual spending.',
+            icon: Wallet,
+            tone:
+                props.budget_summary.current_month_summary.total_remaining < 0
+                    ? ('danger' as const)
+                    : ('success' as const),
+        },
+    ];
+});
 
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat('en-PH', {
@@ -157,7 +267,7 @@ const spendingLabels = computed(() =>
 
 const budgetSeries = computed(() => [
     {
-        name: 'Budget',
+        name: 'Allocation',
         values: props.breakdowns.budget_vs_actual.map(
             (budget) => budget.amount_limit,
         ),
@@ -173,11 +283,7 @@ const budgetSeries = computed(() => [
 ]);
 
 const budgetLabels = computed(() =>
-    props.breakdowns.budget_vs_actual.map((budget) =>
-        canSelectDepartment.value
-            ? `${budget.department?.name ?? 'Department'} · ${budget.category_name}`
-            : budget.category_name,
-    ),
+    props.breakdowns.budget_vs_actual.map((budget) => budget.category_name),
 );
 
 const applyFilters = () => {
@@ -296,59 +402,26 @@ const applyFilters = () => {
                         </div>
                     </div>
                 </CardHeader>
-                <CardContent class="flex justify-end">
-                    <Button variant="outline" @click="applyFilters"
-                        >Apply Filters</Button
-                    >
+                <CardContent>
+                    <ResponsiveActionGroup align="end">
+                        <Button variant="outline" @click="applyFilters">
+                            Apply Filters
+                        </Button>
+                    </ResponsiveActionGroup>
                 </CardContent>
             </Card>
 
-            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                <Card class="border-sidebar-border/70 shadow-sm">
-                    <CardHeader
-                        class="flex flex-row items-center justify-between pb-2"
-                    >
-                        <CardTitle class="text-sm">Monthly Income</CardTitle>
-                        <TrendingUp class="size-4 text-emerald-600" />
-                    </CardHeader>
-                    <CardContent class="text-2xl font-semibold">{{
-                        formatCurrency(summary.monthly.income)
-                    }}</CardContent>
-                </Card>
-                <Card class="border-sidebar-border/70 shadow-sm">
-                    <CardHeader
-                        class="flex flex-row items-center justify-between pb-2"
-                    >
-                        <CardTitle class="text-sm">Monthly Expenses</CardTitle>
-                        <TrendingDown class="size-4 text-orange-600" />
-                    </CardHeader>
-                    <CardContent class="text-2xl font-semibold">{{
-                        formatCurrency(summary.monthly.expenses)
-                    }}</CardContent>
-                </Card>
-                <Card class="border-sidebar-border/70 shadow-sm">
-                    <CardHeader
-                        class="flex flex-row items-center justify-between pb-2"
-                    >
-                        <CardTitle class="text-sm">Monthly Balance</CardTitle>
-                        <Wallet class="size-4 text-sky-600" />
-                    </CardHeader>
-                    <CardContent class="text-2xl font-semibold">{{
-                        formatCurrency(summary.monthly.balance)
-                    }}</CardContent>
-                </Card>
-                <Card class="border-sidebar-border/70 shadow-sm">
-                    <CardHeader
-                        class="flex flex-row items-center justify-between pb-2"
-                    >
-                        <CardTitle class="text-sm">Yearly Balance</CardTitle>
-                        <BarChart3 class="size-4 text-violet-600" />
-                    </CardHeader>
-                    <CardContent class="text-2xl font-semibold">{{
-                        formatCurrency(summary.yearly.balance)
-                    }}</CardContent>
-                </Card>
-            </div>
+            <DashboardMetricGrid>
+                <DashboardMetricCard
+                    v-for="metric in summaryMetrics"
+                    :key="metric.id"
+                    :label="metric.label"
+                    :value="metric.value"
+                    :helper="metric.helper"
+                    :icon="metric.icon"
+                    :tone="metric.tone"
+                />
+            </DashboardMetricGrid>
 
             <div class="grid gap-4 xl:grid-cols-2">
                 <Card class="border-sidebar-border/70 shadow-sm">
@@ -406,15 +479,33 @@ const applyFilters = () => {
                     </CardContent>
                 </Card>
 
-                <Card class="border-sidebar-border/70 shadow-sm">
+                <Card
+                    v-if="
+                        budgetAccess.can_view_summaries &&
+                        budget_summary !== null
+                    "
+                    class="border-sidebar-border/70 shadow-sm"
+                >
                     <CardHeader>
                         <CardTitle>Budget vs Actual</CardTitle>
                         <CardDescription
-                            >Department-scoped budget
-                            comparison</CardDescription
+                            >{{ budget_summary.scope_label }}
+                            comparison across the organization.</CardDescription
                         >
                     </CardHeader>
                     <CardContent>
+                        <DashboardMetricGrid class="mb-4">
+                            <DashboardMetricCard
+                                v-for="metric in centralBudgetMetrics"
+                                :key="metric.id"
+                                :label="metric.label"
+                                :value="metric.value"
+                                :helper="metric.helper"
+                                :icon="metric.icon"
+                                :tone="metric.tone"
+                            />
+                        </DashboardMetricGrid>
+
                         <div
                             v-if="breakdowns.budget_vs_actual.length === 0"
                             class="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground"
@@ -430,12 +521,17 @@ const applyFilters = () => {
                 </Card>
             </div>
 
-            <Card class="border-sidebar-border/70 shadow-sm">
+            <Card
+                v-if="
+                    budgetAccess.can_view_summaries && budget_summary !== null
+                "
+                class="border-sidebar-border/70 shadow-sm"
+            >
                 <CardHeader>
                     <CardTitle>Budget Analysis</CardTitle>
                     <CardDescription
-                        >{{ breakdowns.budget_vs_actual.length }} budget
-                        rows</CardDescription
+                        >{{ budget_summary.scope_label }} rows for
+                        {{ monthTitle }}</CardDescription
                     >
                 </CardHeader>
                 <CardContent>
@@ -450,12 +546,9 @@ const applyFilters = () => {
                         <Table>
                             <TableHeader class="bg-muted/50">
                                 <TableRow>
-                                    <TableHead v-if="canSelectDepartment"
-                                        >Department</TableHead
-                                    >
                                     <TableHead>Category</TableHead>
                                     <TableHead class="text-right"
-                                        >Budget</TableHead
+                                        >Allocation</TableHead
                                     >
                                     <TableHead class="text-right"
                                         >Actual</TableHead
@@ -470,9 +563,6 @@ const applyFilters = () => {
                                     v-for="budget in breakdowns.budget_vs_actual"
                                     :key="budget.id"
                                 >
-                                    <TableCell v-if="canSelectDepartment">{{
-                                        budget.department?.name ?? '-'
-                                    }}</TableCell>
                                     <TableCell>{{
                                         budget.category_name
                                     }}</TableCell>

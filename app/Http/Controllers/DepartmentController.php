@@ -44,6 +44,10 @@ class DepartmentController extends Controller
     ): RedirectResponse {
         $existingDepartment = $this->departmentRepository->findOrFail($department);
 
+        if ($existingDepartment->isLocked()) {
+            return back()->with('error', 'The Financial Management department is protected and cannot be modified.');
+        }
+
         $updateDepartmentService->handle($existingDepartment, $request->validated());
 
         return back()->with('success', 'Department updated.');
@@ -52,6 +56,10 @@ class DepartmentController extends Controller
     public function destroy(Request $request, int $department): RedirectResponse
     {
         $existingDepartment = $this->departmentRepository->findOrFail($department);
+
+        if ($existingDepartment->isLocked()) {
+            return back()->with('error', 'The Financial Management department is protected and cannot be deleted.');
+        }
 
         if ($this->departmentRepository->hasUsers($existingDepartment)) {
             return back()->with('error', 'This department cannot be deleted because it still has assigned users or financial records.');

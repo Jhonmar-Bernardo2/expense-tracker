@@ -2,6 +2,9 @@
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Bell, CheckCheck, Clock3, ExternalLink } from 'lucide-vue-next';
 import { computed } from 'vue';
+import DashboardMetricCard from '@/components/shared/DashboardMetricCard.vue';
+import DashboardMetricGrid from '@/components/shared/DashboardMetricGrid.vue';
+import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,7 +32,7 @@ import type {
     Paginator,
 } from '@/types';
 
-defineProps<{
+const props = defineProps<{
     notification_items: Paginator<NotificationItem>;
 }>();
 
@@ -45,6 +48,32 @@ const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Dashboard', href: dashboard() },
     { title: 'Notifications', href: notificationsIndex() },
 ];
+const summaryMetrics = computed(() => [
+    {
+        id: 'notifications-unread',
+        label: 'Unread',
+        value: sharedNotifications.value.unread_count.toLocaleString(),
+        helper: 'Notifications that still need attention.',
+        icon: Bell,
+        tone: sharedNotifications.value.unread_count > 0 ? ('warning' as const) : ('success' as const),
+    },
+    {
+        id: 'notifications-visible',
+        label: 'Visible items',
+        value: props.notification_items.meta.total.toLocaleString(),
+        helper: 'Items available in your current inbox view.',
+        icon: CheckCheck,
+        tone: 'info' as const,
+    },
+    {
+        id: 'notifications-latest-update',
+        label: 'Latest update',
+        value: formatDateTime(props.notification_items.data[0]?.created_at ?? null),
+        helper: 'Newest notification visible on this page.',
+        icon: Clock3,
+        tone: 'default' as const,
+    },
+]);
 
 const markAsRead = (notification: NotificationItem) => {
     router.patch(readNotification(notification.id).url, {}, { preserveScroll: true });
@@ -95,42 +124,30 @@ const formatDateTime = (value: string | null) => {
                         </CardDescription>
                     </div>
 
-                    <Button
-                        type="button"
-                        variant="outline"
-                        :disabled="sharedNotifications.unread_count === 0"
-                        @click="markAllAsRead"
-                    >
-                        <CheckCheck class="mr-2 size-4" />
-                        Mark all as read
-                    </Button>
+                    <ResponsiveActionGroup align="end">
+                        <Button
+                            type="button"
+                            variant="outline"
+                            :disabled="sharedNotifications.unread_count === 0"
+                            @click="markAllAsRead"
+                        >
+                            <CheckCheck class="mr-2 size-4" />
+                            Mark all as read
+                        </Button>
+                    </ResponsiveActionGroup>
                 </CardHeader>
-                <CardContent class="grid gap-4 sm:grid-cols-3">
-                    <div class="rounded-lg border bg-muted/30 p-4">
-                        <div class="text-sm text-muted-foreground">Unread</div>
-                        <div class="mt-2 text-2xl font-semibold">
-                            {{ sharedNotifications.unread_count }}
-                        </div>
-                    </div>
-                    <div class="rounded-lg border bg-muted/30 p-4">
-                        <div class="text-sm text-muted-foreground">Visible items</div>
-                        <div class="mt-2 text-2xl font-semibold">
-                            {{ notification_items.meta.total }}
-                        </div>
-                    </div>
-                    <div class="rounded-lg border bg-muted/30 p-4">
-                        <div class="flex items-center gap-2 text-sm text-muted-foreground">
-                            <Clock3 class="size-4" />
-                            Latest update
-                        </div>
-                        <div class="mt-2 text-sm font-medium">
-                            {{
-                                formatDateTime(
-                                    notification_items.data[0]?.created_at ?? null,
-                                )
-                            }}
-                        </div>
-                    </div>
+                <CardContent>
+                    <DashboardMetricGrid>
+                        <DashboardMetricCard
+                            v-for="metric in summaryMetrics"
+                            :key="metric.id"
+                            :label="metric.label"
+                            :value="metric.value"
+                            :helper="metric.helper"
+                            :icon="metric.icon"
+                            :tone="metric.tone"
+                        />
+                    </DashboardMetricGrid>
                 </CardContent>
             </Card>
 
@@ -193,7 +210,7 @@ const formatDateTime = (value: string | null) => {
                                     </div>
                                 </div>
 
-                                <div class="flex flex-wrap gap-2">
+                                <ResponsiveActionGroup align="end">
                                     <Button
                                         v-if="!notification.is_read"
                                         type="button"
@@ -213,7 +230,7 @@ const formatDateTime = (value: string | null) => {
                                             Open request
                                         </Link>
                                     </Button>
-                                </div>
+                                </ResponsiveActionGroup>
                             </div>
                         </div>
                     </div>

@@ -3,6 +3,7 @@ import { Head, router, useForm } from '@inertiajs/vue3';
 import { Pencil, Plus, ShieldCheck, UserCog } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 import InputError from '@/components/InputError.vue';
+import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -439,8 +440,128 @@ const canManageUser = (user: ManagedUser) => !user.is_system_account;
                         No user accounts found yet.
                     </div>
 
-                    <div v-else class="overflow-hidden rounded-lg border">
-                        <div class="overflow-x-auto">
+                    <div v-else class="space-y-3">
+                        <div class="grid gap-3 md:hidden">
+                            <div
+                                v-for="user in users"
+                                :key="`user-card-${user.id}`"
+                                class="rounded-xl border p-4 shadow-sm"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="flex flex-wrap items-center gap-2">
+                                            <div class="font-medium text-foreground">
+                                                {{ user.name }}
+                                            </div>
+                                            <Badge
+                                                v-if="user.is_system_account"
+                                                variant="outline"
+                                            >
+                                                System
+                                            </Badge>
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            {{ user.email }}
+                                        </div>
+                                    </div>
+                                    <Badge
+                                        :variant="
+                                            user.is_active
+                                                ? 'outline'
+                                                : 'destructive'
+                                        "
+                                    >
+                                        {{ user.is_active ? 'Active' : 'Inactive' }}
+                                    </Badge>
+                                </div>
+
+                                <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Role
+                                        </div>
+                                        <div class="mt-1">
+                                            <Badge :variant="roleBadgeVariant(user.role)">
+                                                {{ user.role }}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Department
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            {{ user.department?.name ?? 'Unassigned' }}
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Verification
+                                        </div>
+                                        <div class="mt-1">
+                                            <Badge
+                                                :variant="
+                                                    user.email_verified_at
+                                                        ? 'outline'
+                                                        : 'secondary'
+                                                "
+                                            >
+                                                {{
+                                                    user.email_verified_at
+                                                        ? 'Verified'
+                                                        : 'Pending'
+                                                }}
+                                            </Badge>
+                                        </div>
+                                    </div>
+                                    <div v-if="user.is_system_account">
+                                        <div class="text-xs text-muted-foreground">
+                                            Note
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            Protected developer account
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <ResponsiveActionGroup class="mt-4" align="end">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        :disabled="!canManageUser(user)"
+                                        @click="openEditDialog(user)"
+                                    >
+                                        <Pencil class="mr-2 size-4" />
+                                        Edit
+                                    </Button>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        :disabled="
+                                            !canManageUser(user) ||
+                                            togglingUserId === user.id
+                                        "
+                                        @click="toggleStatus(user)"
+                                    >
+                                        <Spinner
+                                            v-if="togglingUserId === user.id"
+                                        />
+                                        <ShieldCheck
+                                            v-else
+                                            class="mr-2 size-4"
+                                        />
+                                        {{
+                                            user.is_active
+                                                ? 'Deactivate'
+                                                : 'Activate'
+                                        }}
+                                    </Button>
+                                </ResponsiveActionGroup>
+                            </div>
+                        </div>
+
+                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                            <div class="overflow-x-auto">
                             <table
                                 class="min-w-full divide-y divide-border text-sm"
                             >
@@ -543,7 +664,10 @@ const canManageUser = (user: ManagedUser) => !user.is_system_account;
                                             </Badge>
                                         </td>
                                         <td class="px-4 py-3">
-                                            <div class="flex justify-end gap-2">
+                                            <ResponsiveActionGroup
+                                                align="end"
+                                                :full-width-on-mobile="false"
+                                            >
                                                 <Button
                                                     variant="outline"
                                                     size="sm"
@@ -585,7 +709,7 @@ const canManageUser = (user: ManagedUser) => !user.is_system_account;
                                                             : 'Activate'
                                                     }}
                                                 </Button>
-                                            </div>
+                                            </ResponsiveActionGroup>
                                             <p
                                                 v-if="user.is_system_account"
                                                 class="mt-2 text-right text-xs text-muted-foreground"
@@ -596,6 +720,7 @@ const canManageUser = (user: ManagedUser) => !user.is_system_account;
                                     </tr>
                                 </tbody>
                             </table>
+                            </div>
                         </div>
                     </div>
                 </CardContent>

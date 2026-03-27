@@ -25,12 +25,26 @@ class DepartmentRepository
     {
         return Department::query()
             ->orderBy('name')
-            ->get(['id', 'name']);
+            ->get(['id', 'name', 'is_financial_management', 'is_locked']);
     }
 
     public function findOrFail(int $departmentId): Department
     {
         return Department::query()->findOrFail($departmentId);
+    }
+
+    public function findFinancialManagement(): ?Department
+    {
+        return Department::query()
+            ->where('is_financial_management', true)
+            ->first();
+    }
+
+    public function findFinancialManagementOrFail(): Department
+    {
+        return Department::query()
+            ->where('is_financial_management', true)
+            ->firstOrFail();
     }
 
     /**
@@ -57,6 +71,10 @@ class DepartmentRepository
 
     public function hasUsers(Department $department): bool
     {
+        if ($department->isLocked()) {
+            return true;
+        }
+
         return $department->users()->exists()
             || $department->budgets()->exists()
             || $department->transactions()->exists();

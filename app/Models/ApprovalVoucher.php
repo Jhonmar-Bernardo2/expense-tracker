@@ -98,8 +98,12 @@ class ApprovalVoucher extends Model
 
     public function canEditRequest(User $user): bool
     {
+        if (! in_array($this->status, [ApprovalVoucherStatus::Draft, ApprovalVoucherStatus::Rejected], true)) {
+            return false;
+        }
+
         return $this->isRequestedBy($user)
-            && in_array($this->status, [ApprovalVoucherStatus::Draft, ApprovalVoucherStatus::Rejected], true);
+            || $this->canCollaborateOnBudgetRequest($user);
     }
 
     public function canSubmitRequest(User $user): bool
@@ -109,12 +113,24 @@ class ApprovalVoucher extends Model
 
     public function canApprove(User $user): bool
     {
-        return $user->isAdmin() && $this->status === ApprovalVoucherStatus::PendingApproval;
+        if ($this->status !== ApprovalVoucherStatus::PendingApproval) {
+            return false;
+        }
+
+        if ($this->isRequestedBy($user)) {
+            return false;
+        }
+
+        return match ($this->module) {
+            ApprovalVoucherModule::Transaction => $user->canApproveTransactionRequests(),
+            ApprovalVoucherModule::Budget => $user->isAdmin(),
+            ApprovalVoucherModule::Allocation => $user->canApproveBudgetAllocations(),
+        };
     }
 
     public function canReject(User $user): bool
     {
-        return $user->isAdmin() && $this->status === ApprovalVoucherStatus::PendingApproval;
+        return $this->canApprove($user);
     }
 
     public function resolveSubject(): string
@@ -127,9 +143,18 @@ class ApprovalVoucher extends Model
 
         $month = isset($payload['month']) ? (int) $payload['month'] : null;
         $year = isset($payload['year']) ? (int) $payload['year'] : null;
+        $monthLabel = $month !== null && $year !== null && $month >= 1 && $month <= 12
+            ? sprintf('%s %d', date('F', mktime(0, 0, 0, $month, 1)), $year)
+            : null;
 
-        if ($month !== null && $year !== null && $month >= 1 && $month <= 12) {
-            return sprintf('Budget for %s %d', date('F', mktime(0, 0, 0, $month, 1)), $year);
+        if ($this->module === ApprovalVoucherModule::Allocation) {
+            return $monthLabel === null
+                ? 'Monthly allocation request'
+                : "Total allocation for {$monthLabel}";
+        }
+
+        if ($monthLabel !== null) {
+            return "Category budget for {$monthLabel}";
         }
 
         return $this->target_id === null
@@ -151,5 +176,19 @@ class ApprovalVoucher extends Model
         $pendingAgeDays = $this->pendingAgeDays();
 
         return $pendingAgeDays !== null && $pendingAgeDays > 3;
+    }
+
+    private function canCollaborateOnBudgetRequest(User $user): bool
+    {
+        if (! in_array($this->module, [ApprovalVoucherModule::Budget, ApprovalVoucherModule::Allocation], true)) {
+            return false;
+        }
+
+        if ($user->isAdmin()) {
+            return true;
+        }
+
+        return $user->isFinancialManagement()
+            && $this->department_id === $user->department_id;
     }
 }

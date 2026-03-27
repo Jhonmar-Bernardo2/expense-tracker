@@ -100,7 +100,7 @@ class TransactionTest extends TestCase
         $this->assertDatabaseCount('transactions', 0);
     }
 
-    public function test_admin_can_filter_and_create_transaction_requests_for_any_department(): void
+    public function test_admin_can_filter_any_department_but_cannot_create_transaction_requests(): void
     {
         $admin = User::factory()->admin()->create();
         $departmentA = Department::factory()->create(['name' => 'Finance']);
@@ -134,14 +134,9 @@ class TransactionTest extends TestCase
                 'description' => null,
                 'transaction_date' => '2026-04-01',
             ])
-            ->assertRedirect();
+            ->assertForbidden();
 
-        $approvalVoucher = ApprovalVoucher::query()->latest('id')->firstOrFail();
-
-        $this->assertSame($admin->id, $approvalVoucher->requested_by);
-        $this->assertSame($departmentB->id, $approvalVoucher->department_id);
-        $this->assertSame('transaction', $approvalVoucher->module->value);
-        $this->assertSame('create', $approvalVoucher->action->value);
+        $this->assertDatabaseCount('approval_vouchers', 0);
         $this->assertDatabaseCount('transactions', 2);
     }
 

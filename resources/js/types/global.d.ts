@@ -1,4 +1,5 @@
 import type { Auth, Flash } from '@/types/auth';
+import type { BudgetAccessShared } from '@/types/budget-access';
 import type { NotificationsShared, WorkflowShared } from '@/types/notifications';
 
 // Extend ImportMeta interface for Vite...
@@ -22,6 +23,7 @@ declare module '@inertiajs/core' {
             flash: Flash;
             notifications: NotificationsShared;
             workflow: WorkflowShared;
+            budget_access: BudgetAccessShared;
             sidebarOpen: boolean;
             [key: string]: unknown;
         };

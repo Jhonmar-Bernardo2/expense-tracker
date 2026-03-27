@@ -33,8 +33,7 @@ class TransactionResource extends JsonResource
                 'type' => $this->category->type->value,
             ]),
             'department' => $this->whenLoaded('department', fn () => [
-                'id' => $this->department->id,
-                'name' => $this->department->name,
+                ...$this->department->toSummaryArray(),
             ]),
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),

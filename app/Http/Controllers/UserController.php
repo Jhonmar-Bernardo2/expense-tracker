@@ -32,10 +32,7 @@ class UserController extends Controller
             ),
             'departments' => $this->departmentRepository
                 ->getOptions()
-                ->map(fn ($department) => [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                ])
+                ->map(fn ($department) => $department->toSummaryArray())
                 ->values(),
             'roles' => collect(UserRole::cases())->map(fn (UserRole $role) => [
                 'value' => $role->value,

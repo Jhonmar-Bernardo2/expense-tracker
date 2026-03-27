@@ -44,7 +44,10 @@ class BudgetRepository
             ->active()
             ->when(
                 ! $user->isAdmin(),
-                fn (Builder $query) => $query->where('department_id', $user->department_id),
+                fn (Builder $query) => $query->where(
+                    'department_id',
+                    $user->isFinancialManagement() ? $user->department_id : 0,
+                ),
             )
             ->findOrFail($budgetId);
     }
@@ -91,7 +94,7 @@ class BudgetRepository
         $budget->delete();
     }
 
-    public function archive(Budget $budget, int $approvalVoucherId): Budget
+    public function archive(Budget $budget, ?int $approvalVoucherId = null): Budget
     {
         $budget->update([
             'archived_at' => now(),
@@ -102,7 +105,13 @@ class BudgetRepository
     }
 
     /**
-     * @return array{total_budgeted: float, total_spent: float, total_remaining: float, categories_over_budget: int}
+     * @return array{
+     *     total_budgeted: float,
+     *     total_allocated: float,
+     *     total_spent: float,
+     *     total_remaining: float,
+     *     categories_over_budget: int
+     * }
      */
     public function getMonthlySummary(?int $departmentId, CarbonImmutable $date): array
     {
@@ -116,10 +125,26 @@ class BudgetRepository
 
         return [
             'total_budgeted' => $totalBudgeted,
+            'total_allocated' => $totalBudgeted,
             'total_spent' => $totalSpent,
             'total_remaining' => round($totalBudgeted - $totalSpent, 2),
             'categories_over_budget' => $categoriesOverBudget,
         ];
+    }
+
+    public function sumActiveAmountLimitForPeriod(
+        ?int $departmentId,
+        int $month,
+        int $year,
+        ?int $ignoreBudgetId = null,
+    ): float {
+        return round((float) Budget::query()
+            ->active()
+            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
+            ->where('month', $month)
+            ->where('year', $year)
+            ->when($ignoreBudgetId !== null, fn (Builder $query) => $query->whereKeyNot($ignoreBudgetId))
+            ->sum('amount_limit'), 2);
     }
 
     /**
@@ -158,7 +183,6 @@ class BudgetRepository
             ->where('categories.type', TransactionType::Expense->value)
             ->leftJoinSub($this->usageSubquery($departmentId), 'budget_usage', function ($join) {
                 $join->on('budget_usage.category_id', '=', 'budgets.category_id')
-                    ->on('budget_usage.department_id', '=', 'budgets.department_id')
                     ->on('budget_usage.usage_month', '=', 'budgets.month')
                     ->on('budget_usage.usage_year', '=', 'budgets.year');
             })
@@ -171,10 +195,8 @@ class BudgetRepository
     {
         return Transaction::query()
             ->active()
-            ->selectRaw('department_id, category_id, EXTRACT(MONTH FROM transaction_date) as usage_month, EXTRACT(YEAR FROM transaction_date) as usage_year, SUM(amount) as amount_spent')
-            ->when($departmentId !== null, fn (Builder $query) => $query->where('department_id', $departmentId))
+            ->selectRaw('category_id, EXTRACT(MONTH FROM transaction_date) as usage_month, EXTRACT(YEAR FROM transaction_date) as usage_year, SUM(amount) as amount_spent')
             ->where('type', TransactionType::Expense->value)
-            ->groupBy('department_id')
             ->groupBy('category_id')
             ->groupByRaw('EXTRACT(MONTH FROM transaction_date), EXTRACT(YEAR FROM transaction_date)');
     }

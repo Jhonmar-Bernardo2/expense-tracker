@@ -107,7 +107,12 @@ class UserManagementTest extends TestCase
                 ->where('users.0.role', UserRole::Admin->value)
                 ->where('users.1.name', 'Staff User')
                 ->where('users.1.role', UserRole::Staff->value)
-                ->has('departments', 2)
+                ->has('departments', 3)
+                ->where('departments.0.name', 'Finance')
+                ->where('departments.1.name', 'Financial Management')
+                ->where('departments.1.is_financial_management', true)
+                ->where('departments.1.is_locked', true)
+                ->where('departments.2.name', 'General')
                 ->has('roles', 2)
             );
     }

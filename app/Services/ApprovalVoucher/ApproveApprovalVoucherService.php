@@ -7,8 +7,10 @@ use App\Enums\ApprovalVoucherModule;
 use App\Enums\ApprovalVoucherStatus;
 use App\Models\ApprovalVoucher;
 use App\Models\Budget;
+use App\Models\BudgetAllocation;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Repositories\BudgetAllocationRepository;
 use App\Repositories\BudgetRepository;
 use App\Repositories\TransactionRepository;
 use App\Services\ActivityLogService;
@@ -21,9 +23,11 @@ class ApproveApprovalVoucherService
         private readonly ApprovalVoucherPayloadService $approvalVoucherPayloadService,
         private readonly TransactionRepository $transactionRepository,
         private readonly BudgetRepository $budgetRepository,
+        private readonly BudgetAllocationRepository $budgetAllocationRepository,
         private readonly ActivityLogService $activityLogService,
         private readonly ApprovalVoucherNotificationService $approvalVoucherNotificationService,
-    ) {}
+    ) {
+    }
 
     /**
      * @param  array{remarks?: ?string}  $data
@@ -65,13 +69,24 @@ class ApproveApprovalVoucherService
         });
     }
 
-    private function applyChange(ApprovalVoucher $approvalVoucher, Transaction|Budget|null $target): Transaction|Budget
-    {
-        if ($approvalVoucher->module === ApprovalVoucherModule::Transaction) {
-            return $this->applyTransactionChange($approvalVoucher, $target instanceof Transaction ? $target : null);
-        }
-
-        return $this->applyBudgetChange($approvalVoucher, $target instanceof Budget ? $target : null);
+    private function applyChange(
+        ApprovalVoucher $approvalVoucher,
+        Transaction|Budget|BudgetAllocation|null $target,
+    ): Transaction|Budget|BudgetAllocation {
+        return match ($approvalVoucher->module) {
+            ApprovalVoucherModule::Transaction => $this->applyTransactionChange(
+                $approvalVoucher,
+                $target instanceof Transaction ? $target : null,
+            ),
+            ApprovalVoucherModule::Budget => $this->applyBudgetChange(
+                $approvalVoucher,
+                $target instanceof Budget ? $target : null,
+            ),
+            ApprovalVoucherModule::Allocation => $this->applyAllocationChange(
+                $approvalVoucher,
+                $target instanceof BudgetAllocation ? $target : null,
+            ),
+        };
     }
 
     private function applyTransactionChange(ApprovalVoucher $approvalVoucher, ?Transaction $transaction): Transaction
@@ -120,6 +135,31 @@ class ApproveApprovalVoucherService
         };
     }
 
+    private function applyAllocationChange(
+        ApprovalVoucher $approvalVoucher,
+        ?BudgetAllocation $budgetAllocation,
+    ): BudgetAllocation {
+        /** @var array{department_id: int, month: int, year: int, amount_limit: float|int|string}|null $payload */
+        $payload = $approvalVoucher->after_payload;
+
+        return match ($approvalVoucher->action) {
+            ApprovalVoucherAction::Create => $this->budgetAllocationRepository->create(
+                $approvalVoucher->requestedBy,
+                (int) $payload['department_id'],
+                $payload,
+                $approvalVoucher->id,
+            ),
+            ApprovalVoucherAction::Update => $this->budgetAllocationRepository->update(
+                $this->requireAllocationTarget($budgetAllocation),
+                $payload,
+            ),
+            ApprovalVoucherAction::Delete => $this->budgetAllocationRepository->archive(
+                $this->requireAllocationTarget($budgetAllocation),
+                $approvalVoucher->id,
+            ),
+        };
+    }
+
     private function requireTransactionTarget(?Transaction $transaction): Transaction
     {
         if ($transaction !== null) {
@@ -139,6 +179,17 @@ class ApproveApprovalVoucherService
 
         throw ValidationException::withMessages([
             'approval_voucher' => 'The selected budget is no longer active.',
+        ]);
+    }
+
+    private function requireAllocationTarget(?BudgetAllocation $budgetAllocation): BudgetAllocation
+    {
+        if ($budgetAllocation !== null) {
+            return $budgetAllocation;
+        }
+
+        throw ValidationException::withMessages([
+            'approval_voucher' => 'The selected allocation is no longer active.',
         ]);
     }
 }

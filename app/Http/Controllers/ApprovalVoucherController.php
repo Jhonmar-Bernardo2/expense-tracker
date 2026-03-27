@@ -16,6 +16,7 @@ use App\Http\Resources\ApprovalVoucherResource;
 use App\Repositories\ActivityLogRepository;
 use App\Repositories\ApprovalVoucherRepository;
 use App\Repositories\CategoryRepository;
+use App\Repositories\DepartmentRepository;
 use App\Services\ApprovalVoucher\ApproveApprovalVoucherService;
 use App\Services\ApprovalVoucher\RejectApprovalVoucherService;
 use App\Services\ApprovalVoucher\StoreApprovalVoucherService;
@@ -24,6 +25,7 @@ use App\Services\ApprovalVoucher\UpdateApprovalVoucherService;
 use App\Services\Department\DepartmentScopeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use App\Models\User;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -33,13 +35,14 @@ class ApprovalVoucherController extends Controller
         private readonly ApprovalVoucherRepository $approvalVoucherRepository,
         private readonly ActivityLogRepository $activityLogRepository,
         private readonly CategoryRepository $categoryRepository,
+        private readonly DepartmentRepository $departmentRepository,
         private readonly DepartmentScopeService $departmentScopeService,
     ) {}
 
     public function index(IndexApprovalVoucherRequest $request): Response
     {
         $validated = $request->validated();
-        $scope = $this->departmentScopeService->resolveFilterScope(
+        $scope = $this->resolveApprovalVoucherScope(
             $request->user(),
             isset($validated['department']) ? (int) $validated['department'] : null,
         );
@@ -61,12 +64,8 @@ class ApprovalVoucherController extends Controller
             'approval_vouchers' => ApprovalVoucherResource::collection(
                 $this->approvalVoucherRepository->getForIndex($request->user(), $scope['department_id'], $filters)
             ),
-            'departments' => $this->departmentScopeService
-                ->getOptionsFor($request->user())
-                ->map(fn ($department) => [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                ])
+            'departments' => $this->getApprovalVoucherDepartmentOptions($request->user())
+                ->map(fn ($department) => $department->toSummaryArray())
                 ->values(),
             'department_scope' => $scope,
             'filters' => [
@@ -107,12 +106,8 @@ class ApprovalVoucherController extends Controller
                     'type' => $category->type->value,
                 ])
                 ->values(),
-            'departments' => $this->departmentScopeService
-                ->getOptionsFor($request->user())
-                ->map(fn ($department) => [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                ])
+            'departments' => $this->getApprovalVoucherDepartmentOptions($request->user())
+                ->map(fn ($department) => $department->toSummaryArray())
                 ->values(),
             'transaction_types' => collect(TransactionType::cases())->map(fn (TransactionType $type) => [
                 'value' => $type->value,
@@ -134,12 +129,8 @@ class ApprovalVoucherController extends Controller
                     'type' => $category->type->value,
                 ])
                 ->values(),
-            'departments' => $this->departmentScopeService
-                ->getOptionsFor($request->user())
-                ->map(fn ($department) => [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                ])
+            'departments' => $this->getApprovalVoucherDepartmentOptions($request->user())
+                ->map(fn ($department) => $department->toSummaryArray())
                 ->values(),
         ]);
     }
@@ -229,5 +220,43 @@ class ApprovalVoucherController extends Controller
         );
 
         return back()->with('success', 'Approval voucher rejected.');
+    }
+
+    /**
+     * @return array{
+     *     department_id: int|null,
+     *     selected_department: array{id: int, name: string, is_financial_management: bool, is_locked: bool}|null,
+     *     can_select_department: bool,
+     *     is_all_departments: bool
+     * }
+     */
+    private function resolveApprovalVoucherScope(User $user, ?int $requestedDepartmentId): array
+    {
+        if (! ($user->isAdmin() || $user->isFinancialManagement())) {
+            return $this->departmentScopeService->resolveFilterScope($user, $requestedDepartmentId);
+        }
+
+        $department = $requestedDepartmentId === null
+            ? null
+            : $this->departmentRepository->findOrFail($requestedDepartmentId);
+
+        return [
+            'department_id' => $department?->id,
+            'selected_department' => $department?->toSummaryArray(),
+            'can_select_department' => true,
+            'is_all_departments' => $department === null,
+        ];
+    }
+
+    /**
+     * @return \Illuminate\Support\Collection<int, \App\Models\Department>
+     */
+    private function getApprovalVoucherDepartmentOptions(User $user)
+    {
+        if ($user->isAdmin() || $user->isFinancialManagement()) {
+            return $this->departmentRepository->getOptions();
+        }
+
+        return $this->departmentScopeService->getOptionsFor($user);
     }
 }

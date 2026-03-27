@@ -18,7 +18,7 @@ class DepartmentScopeService
     /**
      * @return array{
      *     department_id: int|null,
-     *     selected_department: array{id: int, name: string}|null,
+     *     selected_department: array{id: int, name: string, is_financial_management: bool, is_locked: bool}|null,
      *     can_select_department: bool,
      *     is_all_departments: bool
      * }
@@ -77,7 +77,7 @@ class DepartmentScopeService
     /**
      * @return array{
      *     department_id: int|null,
-     *     selected_department: array{id: int, name: string}|null,
+     *     selected_department: array{id: int, name: string, is_financial_management: bool, is_locked: bool}|null,
      *     can_select_department: bool,
      *     is_all_departments: bool
      * }
@@ -88,10 +88,7 @@ class DepartmentScopeService
             'department_id' => $department?->id,
             'selected_department' => $department === null
                 ? null
-                : [
-                    'id' => $department->id,
-                    'name' => $department->name,
-                ],
+                : $department->toSummaryArray(),
             'can_select_department' => $canSelectDepartment,
             'is_all_departments' => $canSelectDepartment && $department === null,
         ];

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\ApprovalVoucher;
 use App\Models\Budget;
+use App\Models\BudgetAllocation;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Repositories\ActivityLogRepository;
@@ -74,7 +75,7 @@ class ActivityLogService
     public function logAppliedChange(
         User $actor,
         ApprovalVoucher $approvalVoucher,
-        Transaction|Budget $record,
+        Transaction|Budget|BudgetAllocation $record,
     ): void {
         [$event, $summary] = match (true) {
             $record instanceof Transaction && $approvalVoucher->action->value === 'delete' => [
@@ -84,6 +85,14 @@ class ActivityLogService
             $record instanceof Transaction => [
                 'transaction.applied_from_voucher',
                 'Transaction change applied from approved request.',
+            ],
+            $record instanceof BudgetAllocation && $approvalVoucher->action->value === 'delete' => [
+                'allocation.archived_from_voucher',
+                'Allocation archived from approved request.',
+            ],
+            $record instanceof BudgetAllocation => [
+                'allocation.applied_from_voucher',
+                'Allocation change applied from approved request.',
             ],
             $approvalVoucher->action->value === 'delete' => [
                 'budget.archived_from_voucher',

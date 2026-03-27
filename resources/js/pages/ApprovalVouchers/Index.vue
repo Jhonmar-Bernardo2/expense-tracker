@@ -1,7 +1,10 @@
 <script setup lang="ts">
 import { Head, Link, router } from '@inertiajs/vue3';
 import { CheckCheck, FileText, Search, ShieldCheck } from 'lucide-vue-next';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
+import DashboardMetricCard from '@/components/shared/DashboardMetricCard.vue';
+import DashboardMetricGrid from '@/components/shared/DashboardMetricGrid.vue';
+import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -83,6 +86,37 @@ const selectedStatus = ref<string | 'all'>(props.filters.status ?? 'all');
 const selectedModule = ref<string | 'all'>(props.filters.module ?? 'all');
 const selectedAction = ref<string | 'all'>(props.filters.action ?? 'all');
 const search = ref(props.filters.search ?? '');
+const summaryMetrics = computed(() => [
+    {
+        id: 'approval-total-requests',
+        label: 'Total requests',
+        value: props.approval_vouchers.meta.total.toLocaleString(),
+        helper: 'All approval vouchers that match the current scope.',
+        icon: FileText,
+        tone: 'info' as const,
+    },
+    {
+        id: 'approval-pending',
+        label: 'Pending approval',
+        value: props.approval_vouchers.data
+            .filter((item) => item.status === 'pending_approval')
+            .length.toLocaleString(),
+        helper: 'Pending requests on the current page.',
+        icon: CheckCheck,
+        tone: 'warning' as const,
+    },
+    {
+        id: 'approval-scope',
+        label: 'Current scope',
+        value: props.department_scope.is_all_departments
+            ? 'All departments'
+            : (props.department_scope.selected_department?.name ??
+              'Assigned department'),
+        helper: 'The active visibility scope for this queue.',
+        icon: Search,
+        tone: 'default' as const,
+    },
+]);
 
 const applyFilters = () => {
     router.get(
@@ -170,55 +204,24 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                 Approval Vouchers
                             </CardTitle>
                             <CardDescription>
-                                Transaction and budget changes only affect final
-                                records after admin approval.
+                                Transaction requests go to Financial
+                                Management, while monthly allocation requests go
+                                to admin for final approval.
                             </CardDescription>
                         </div>
                     </CardHeader>
-                    <CardContent class="grid gap-4 sm:grid-cols-3">
-                        <div class="rounded-lg border bg-muted/30 p-4">
-                            <div
-                                class="flex items-center gap-2 text-sm text-muted-foreground"
-                            >
-                                <FileText class="size-4" />
-                                Total requests
-                            </div>
-                            <div class="mt-2 text-2xl font-semibold">
-                                {{ approval_vouchers.meta.total }}
-                            </div>
-                        </div>
-                        <div class="rounded-lg border bg-muted/30 p-4">
-                            <div
-                                class="flex items-center gap-2 text-sm text-muted-foreground"
-                            >
-                                <CheckCheck class="size-4" />
-                                Pending approval
-                            </div>
-                            <div class="mt-2 text-2xl font-semibold">
-                                {{
-                                    approval_vouchers.data.filter(
-                                        (item) =>
-                                            item.status === 'pending_approval',
-                                    ).length
-                                }}
-                            </div>
-                        </div>
-                        <div class="rounded-lg border bg-muted/30 p-4">
-                            <div
-                                class="flex items-center gap-2 text-sm text-muted-foreground"
-                            >
-                                <Search class="size-4" />
-                                Current scope
-                            </div>
-                            <div class="mt-2 text-sm font-medium">
-                                {{
-                                    department_scope.is_all_departments
-                                        ? 'All departments'
-                                        : (department_scope.selected_department
-                                              ?.name ?? 'Assigned department')
-                                }}
-                            </div>
-                        </div>
+                    <CardContent>
+                        <DashboardMetricGrid>
+                            <DashboardMetricCard
+                                v-for="metric in summaryMetrics"
+                                :key="metric.id"
+                                :label="metric.label"
+                                :value="metric.value"
+                                :helper="metric.helper"
+                                :icon="metric.icon"
+                                :tone="metric.tone"
+                            />
+                        </DashboardMetricGrid>
                     </CardContent>
                 </Card>
 
@@ -400,8 +403,84 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                         No approval vouchers found for the current filters.
                     </div>
 
-                    <div v-else class="overflow-hidden rounded-lg border">
-                        <Table>
+                    <div v-else class="space-y-3">
+                        <div class="grid gap-3 md:hidden">
+                            <div
+                                v-for="approvalVoucher in approval_vouchers.data"
+                                :key="`approval-card-${approvalVoucher.id}`"
+                                class="rounded-xl border p-4 shadow-sm"
+                            >
+                                <div class="flex items-start justify-between gap-3">
+                                    <div class="min-w-0">
+                                        <div class="font-medium">
+                                            {{ approvalVoucher.subject }}
+                                        </div>
+                                        <div class="mt-1 text-xs text-muted-foreground">
+                                            {{ approvalVoucher.voucher_no }}
+                                        </div>
+                                    </div>
+                                    <Badge
+                                        :variant="statusVariant(approvalVoucher.status)"
+                                    >
+                                        {{ approvalVoucher.status_label }}
+                                    </Badge>
+                                </div>
+
+                                <div class="mt-4 grid gap-3">
+                                    <div class="flex flex-wrap gap-2">
+                                        <Badge variant="outline">
+                                            {{ approvalVoucher.module_label }}
+                                        </Badge>
+                                        <Badge
+                                            :variant="agingVariant(approvalVoucher)"
+                                        >
+                                            {{ agingLabel(approvalVoucher) }}
+                                        </Badge>
+                                    </div>
+                                    <div class="text-sm text-muted-foreground">
+                                        {{ approvalVoucher.action_label }}
+                                    </div>
+                                    <div class="text-sm text-muted-foreground">
+                                        Department:
+                                        {{
+                                            approvalVoucher.department?.name ??
+                                            'Unassigned'
+                                        }}
+                                    </div>
+                                    <div class="text-sm text-muted-foreground">
+                                        Preparer:
+                                        {{
+                                            approvalVoucher.requested_by_user
+                                                ?.name ?? '-'
+                                        }}
+                                    </div>
+                                    <div class="text-sm text-muted-foreground">
+                                        Date: {{ rowDate(approvalVoucher) }}
+                                    </div>
+                                </div>
+
+                                <ResponsiveActionGroup class="mt-4" align="end">
+                                    <Button
+                                        as-child
+                                        variant="outline"
+                                        size="sm"
+                                    >
+                                        <Link
+                                            :href="
+                                                approvalVoucherShow(
+                                                    approvalVoucher.id,
+                                                )
+                                            "
+                                        >
+                                            View
+                                        </Link>
+                                    </Button>
+                                </ResponsiveActionGroup>
+                            </div>
+                        </div>
+
+                        <div class="hidden overflow-hidden rounded-lg border md:block">
+                            <Table>
                             <TableHeader class="bg-muted/50">
                                 <TableRow>
                                     <TableHead>Voucher</TableHead>
@@ -484,7 +563,10 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                         rowDate(approvalVoucher)
                                     }}</TableCell>
                                     <TableCell>
-                                        <div class="flex justify-end">
+                                        <ResponsiveActionGroup
+                                            align="end"
+                                            :full-width-on-mobile="false"
+                                        >
                                             <Button
                                                 as-child
                                                 variant="outline"
@@ -500,11 +582,12 @@ const agingVariant = (approvalVoucher: ApprovalVoucher) => {
                                                     View
                                                 </Link>
                                             </Button>
-                                        </div>
+                                        </ResponsiveActionGroup>
                                     </TableCell>
                                 </TableRow>
                             </TableBody>
-                        </Table>
+                            </Table>
+                        </div>
                     </div>
 
                     <div class="mt-4">

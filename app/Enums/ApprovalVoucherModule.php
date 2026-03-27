@@ -6,6 +6,7 @@ enum ApprovalVoucherModule: string
 {
     case Transaction = 'transaction';
     case Budget = 'budget';
+    case Allocation = 'allocation';
 
     public function label(): string
     {

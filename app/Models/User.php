@@ -77,9 +77,29 @@ class User extends Authenticatable
         return $this->hasMany(Budget::class);
     }
 
+    public function budgetAllocations(): HasMany
+    {
+        return $this->hasMany(BudgetAllocation::class);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;
+    }
+
+    public function isFinancialManagement(): bool
+    {
+        if ($this->department_id === null) {
+            return false;
+        }
+
+        if ($this->relationLoaded('department') && $this->department !== null) {
+            return $this->department->isFinancialManagement();
+        }
+
+        return $this->department()
+            ->where('is_financial_management', true)
+            ->exists();
     }
 
     public function isStaff(): bool
@@ -90,5 +110,40 @@ class User extends Authenticatable
     public function isSystemAccount(): bool
     {
         return (bool) $this->is_system_account;
+    }
+
+    public function canManageCentralBudget(): bool
+    {
+        return $this->isAdmin() || $this->isFinancialManagement();
+    }
+
+    public function canManageCategoryBudgets(): bool
+    {
+        return ! $this->isAdmin() && $this->isFinancialManagement();
+    }
+
+    public function canRequestBudgetAllocations(): bool
+    {
+        return ! $this->isAdmin() && $this->isFinancialManagement();
+    }
+
+    public function canApproveTransactionRequests(): bool
+    {
+        return ! $this->isAdmin() && $this->isFinancialManagement();
+    }
+
+    public function canApproveBudgetAllocations(): bool
+    {
+        return $this->isAdmin();
+    }
+
+    public function canViewCentralBudgetPage(): bool
+    {
+        return $this->canManageCentralBudget();
+    }
+
+    public function canViewCentralBudgetSummaries(): bool
+    {
+        return $this->canManageCentralBudget();
     }
 }
