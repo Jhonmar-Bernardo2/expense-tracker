@@ -140,7 +140,7 @@ const defaultDepartmentId = computed(
 const transactionPageDescription = computed(() =>
     isFinancialManagementUser.value
         ? 'Final income and expense records across all departments. Financial Management entries are applied immediately.'
-        : 'Final income and expense records. New requests are reviewed by the Finance Team before they appear here.',
+        : 'Final income and expense records. Money requests are reviewed by the Finance Team before they appear here.',
 );
 const transactionDialogTitle = computed(() =>
     editingTransaction.value
@@ -149,7 +149,7 @@ const transactionDialogTitle = computed(() =>
             : 'Update request'
         : isFinancialManagementUser.value
           ? 'New transaction'
-          : 'New request',
+          : 'Request Money',
 );
 const transactionDialogDescription = computed(() =>
     isFinancialManagementUser.value
@@ -168,7 +168,7 @@ const transactionPrimaryButtonLabel = computed(() =>
     isFinancialManagementUser.value ? 'Apply now' : 'Submit request',
 );
 const transactionCreateButtonLabel = computed(() =>
-    isFinancialManagementUser.value ? 'New transaction' : 'New request',
+    isFinancialManagementUser.value ? 'New transaction' : 'Request Money',
 );
 const transactionEditActionLabel = computed(() =>
     isFinancialManagementUser.value ? 'Edit transaction' : 'Request changes',

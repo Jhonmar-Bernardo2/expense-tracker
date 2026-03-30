@@ -675,54 +675,54 @@ const printApprovalVoucher = (approvalVoucherId: number) => {
 
                         <div class="hidden md:block">
                             <div
-                                class="min-w-[86rem] overflow-hidden rounded-lg border border-border/70"
+                                class="rounded-lg border border-border/70 bg-background"
                             >
                                 <Table>
                                     <TableHeader class="bg-muted/35">
                                         <TableRow class="hover:bg-transparent">
                                             <TableHead
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[8rem] px-3 text-[11px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap"
                                             >
                                                 Request no.
                                             </TableHead>
                                             <TableHead
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 px-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
                                             >
                                                 Subject
                                             </TableHead>
                                             <TableHead
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[8rem] px-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
                                             >
                                                 Module
                                             </TableHead>
                                             <TableHead
                                                 v-if="canSelectDepartment"
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[9rem] px-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
                                             >
                                                 Department
                                             </TableHead>
                                             <TableHead
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[9rem] px-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
                                             >
                                                 Preparer
                                             </TableHead>
                                             <TableHead
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[7rem] px-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
                                             >
                                                 Status
                                             </TableHead>
                                             <TableHead
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[7rem] px-3 text-[11px] font-semibold uppercase tracking-[0.14em]"
                                             >
                                                 Aging
                                             </TableHead>
                                             <TableHead
-                                                class="h-11 px-4 text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[8rem] px-3 text-[11px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap"
                                             >
                                                 Date
                                             </TableHead>
                                             <TableHead
-                                                class="h-11 px-4 text-right text-[11px] font-semibold uppercase tracking-[0.16em]"
+                                                class="h-10 w-[7rem] px-2 text-right text-[11px] font-semibold uppercase tracking-[0.14em] whitespace-nowrap"
                                             >
                                                 Actions
                                             </TableHead>
@@ -734,37 +734,63 @@ const printApprovalVoucher = (approvalVoucherId: number) => {
                                             :key="approvalVoucher.id"
                                         >
                                             <TableCell
-                                                class="w-[9rem] px-4 py-3 align-top font-medium"
+                                                class="w-[8rem] px-3 py-2.5 align-top text-sm font-medium whitespace-nowrap"
                                             >
                                                 {{ approvalVoucher.voucher_no }}
                                             </TableCell>
                                             <TableCell
-                                                class="max-w-[24rem] px-4 py-3 align-top"
+                                                class="px-3 py-2.5 align-top"
                                             >
-                                                <div class="font-medium">
+                                                <div
+                                                    class="truncate text-sm font-medium"
+                                                    :title="approvalVoucher.subject"
+                                                >
                                                     {{ approvalVoucher.subject }}
                                                 </div>
                                                 <div
-                                                    class="mt-1 line-clamp-2 text-xs text-muted-foreground"
+                                                    class="mt-1 truncate text-xs text-muted-foreground"
+                                                    :title="approvalVoucher.action_label"
                                                 >
                                                     {{ approvalVoucher.action_label }}
                                                 </div>
                                             </TableCell>
                                             <TableCell
-                                                class="w-[10rem] px-4 py-3 align-top text-sm text-muted-foreground"
+                                                class="w-[8rem] px-3 py-2.5 align-top text-sm text-muted-foreground"
                                             >
-                                                {{
-                                                    displayApprovalModuleLabel(
-                                                        approvalVoucher.module,
-                                                        approvalVoucher.module_label,
-                                                    )
-                                                }}
+                                                <div
+                                                    class="truncate"
+                                                    :title="
+                                                        displayApprovalModuleLabel(
+                                                            approvalVoucher.module,
+                                                            approvalVoucher.module_label,
+                                                        )
+                                                    "
+                                                >
+                                                    {{
+                                                        displayApprovalModuleLabel(
+                                                            approvalVoucher.module,
+                                                            approvalVoucher.module_label,
+                                                        )
+                                                    }}
+                                                </div>
                                             </TableCell>
                                             <TableCell
                                                 v-if="canSelectDepartment"
-                                                class="max-w-[14rem] px-4 py-3 align-top text-sm text-muted-foreground"
+                                                class="w-[9rem] px-3 py-2.5 align-top text-sm text-muted-foreground"
                                             >
-                                                <div class="truncate">
+                                                <div
+                                                    class="truncate"
+                                                    :title="
+                                                        approvalVoucher.department
+                                                            ? displayDepartmentName(
+                                                                  approvalVoucher.department,
+                                                                  approvalVoucher
+                                                                      .department
+                                                                      .name,
+                                                              )
+                                                            : '-'
+                                                    "
+                                                >
                                                     {{
                                                         approvalVoucher.department
                                                             ? displayDepartmentName(
@@ -778,14 +804,22 @@ const printApprovalVoucher = (approvalVoucherId: number) => {
                                                 </div>
                                             </TableCell>
                                             <TableCell
-                                                class="w-[12rem] px-4 py-3 align-top text-sm text-muted-foreground"
+                                                class="w-[9rem] px-3 py-2.5 align-top text-sm text-muted-foreground"
                                             >
-                                                {{
-                                                    approvalVoucher.requested_by_user
-                                                        ?.name ?? '-'
-                                                }}
+                                                <div
+                                                    class="truncate"
+                                                    :title="
+                                                        approvalVoucher.requested_by_user
+                                                            ?.name ?? '-'
+                                                    "
+                                                >
+                                                    {{
+                                                        approvalVoucher.requested_by_user
+                                                            ?.name ?? '-'
+                                                    }}
+                                                </div>
                                             </TableCell>
-                                            <TableCell class="w-[8rem] px-4 py-3 align-top">
+                                            <TableCell class="w-[7rem] px-3 py-2.5 align-top">
                                                 <Badge
                                                     :variant="
                                                         statusVariant(
@@ -797,7 +831,7 @@ const printApprovalVoucher = (approvalVoucherId: number) => {
                                                     {{ approvalVoucher.status_label }}
                                                 </Badge>
                                             </TableCell>
-                                            <TableCell class="w-[9rem] px-4 py-3 align-top">
+                                            <TableCell class="w-[7rem] px-3 py-2.5 align-top">
                                                 <Badge
                                                     :variant="
                                                         agingVariant(
@@ -810,14 +844,14 @@ const printApprovalVoucher = (approvalVoucherId: number) => {
                                                 </Badge>
                                             </TableCell>
                                             <TableCell
-                                                class="w-[10rem] px-4 py-3 align-top text-sm text-muted-foreground"
+                                                class="w-[8rem] px-3 py-2.5 align-top text-sm text-muted-foreground whitespace-nowrap"
                                             >
                                                 {{ rowDate(approvalVoucher) }}
                                             </TableCell>
                                             <TableCell
-                                                class="w-[8rem] px-4 py-3 align-top"
+                                                class="w-[7rem] px-2 py-2.5 align-top"
                                             >
-                                                <div class="flex justify-end gap-1">
+                                                <div class="flex justify-end gap-0.5">
                                                     <Button
                                                         as-child
                                                         variant="ghost"

@@ -49,7 +49,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "@php artisan serve"
+            "@php scripts/dev.php"
         ],
         "lint": [
             "pint --parallel"
