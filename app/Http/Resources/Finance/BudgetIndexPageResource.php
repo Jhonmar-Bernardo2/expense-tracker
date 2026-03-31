@@ -25,10 +25,34 @@ class BudgetIndexPageResource extends JsonResource
                 ? null
                 : (new BudgetAllocationResource($this['active_allocation']))->resolve($request),
             'allocation_summary' => $this['allocation_summary'],
+            'budget_presets' => $this['budget_presets']
+                ->map(fn ($preset) => [
+                    'id' => $preset->id,
+                    'name' => $preset->name,
+                    'items' => $preset->items
+                        ->map(fn ($item) => [
+                            'id' => $item->id,
+                            'category_id' => $item->category_id,
+                            'category_name' => $item->category?->name,
+                            'amount_limit' => round((float) $item->amount_limit, 2),
+                        ])
+                        ->values()
+                        ->all(),
+                ])
+                ->values()
+                ->all(),
             'categories' => $this['categories']
                 ->map(fn ($category) => [
                     'id' => $category->id,
                     'name' => $category->name,
+                    'budget_presets' => $category->budgetPresets
+                        ->map(fn ($preset) => [
+                            'id' => $preset->id,
+                            'name' => $preset->name,
+                            'amount_limit' => round((float) $preset->pivot->amount_limit, 2),
+                        ])
+                        ->values()
+                        ->all(),
                 ])
                 ->values()
                 ->all(),

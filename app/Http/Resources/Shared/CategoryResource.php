@@ -15,6 +15,10 @@ class CategoryResource extends JsonResource
     {
         $transactionsCount = $this->resolveCount('transactions');
         $budgetsCount = $this->resolveCount('budgets');
+        $budgetPresets = $this->resource->relationLoaded('budgetPresets')
+            ? $this->budgetPresets
+            : collect();
+        $budgetPresetCount = $budgetPresets->count();
 
         return [
             'id' => $this->id,
@@ -22,8 +26,12 @@ class CategoryResource extends JsonResource
             'type' => $this->type->value,
             'transaction_count' => $transactionsCount,
             'budget_count' => $budgetsCount,
+            'budget_presets' => CategoryBudgetPresetResource::collection($budgetPresets)->resolve($request),
+            'has_budget_preset' => $budgetPresetCount > 0,
+            'budget_preset_count' => $budgetPresetCount,
             'can_delete' => $transactionsCount === 0
-                && $budgetsCount === 0,
+                && $budgetsCount === 0
+                && $budgetPresetCount === 0,
             'created_at' => $this->created_at?->toDateTimeString(),
             'updated_at' => $this->updated_at?->toDateTimeString(),
         ];

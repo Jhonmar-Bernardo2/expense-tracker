@@ -14,7 +14,7 @@ class DeleteCategoryService
     public function handle(Category $category): ?string
     {
         if ($this->categoryRepository->hasRelatedRecords($category)) {
-            return 'This category cannot be deleted because it is already used by transactions or budgets.';
+            return 'This category cannot be deleted because it is already used by transactions, budgets, or budget presets.';
         }
 
         $this->categoryRepository->delete($category);

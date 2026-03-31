@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Finance;
 
 use App\Enums\TransactionType;
+use App\Models\CategoryBudgetPreset;
 use App\Repositories\BudgetRepository;
 use App\Services\Budget\BudgetAccessService;
 use App\Services\Budget\BudgetAllocationSummaryService;
@@ -23,9 +24,24 @@ class UpsertBudgetRequest extends FormRequest
      */
     public function rules(): array
     {
+        $isUpdate = is_numeric($this->route('budget'));
+        $source = $this->input('source', 'manual');
+
         return [
+            'source' => [
+                'nullable',
+                'string',
+                Rule::in(['manual', 'preset']),
+            ],
+            'preset_id' => [
+                Rule::requiredIf(! $isUpdate && $source === 'preset'),
+                'nullable',
+                'integer',
+                Rule::exists('category_budget_presets', 'id'),
+            ],
             'category_id' => [
-                'required',
+                Rule::requiredIf($isUpdate || $source !== 'preset'),
+                'nullable',
                 'integer',
                 Rule::exists('categories', 'id')
                     ->where(fn ($query) => $query->where('type', TransactionType::Expense->value)),
@@ -41,7 +57,8 @@ class UpsertBudgetRequest extends FormRequest
                 'between:1900,2100',
             ],
             'amount_limit' => [
-                'required',
+                Rule::requiredIf($isUpdate || $source !== 'preset'),
+                'nullable',
                 'numeric',
                 'min:0.01',
             ],
@@ -59,6 +76,59 @@ class UpsertBudgetRequest extends FormRequest
             $budgetId = $this->route('budget');
             $ignoreBudgetId = is_numeric($budgetId) ? (int) $budgetId : null;
             $budgetRepository = app(BudgetRepository::class);
+            $source = $this->input('source', 'manual');
+
+            if ($source === 'preset' && $ignoreBudgetId === null) {
+                $preset = CategoryBudgetPreset::query()
+                    ->with(['items.category'])
+                    ->find($this->integer('preset_id'));
+
+                if ($preset === null || $preset->items->isEmpty()) {
+                    $validator->errors()->add(
+                        'preset_id',
+                        'Select a preset with at least one category budget.',
+                    );
+
+                    return;
+                }
+
+                $conflictingCategories = $preset->items
+                    ->filter(fn ($item) => $budgetRepository->existsActiveConflict(
+                        $departmentId,
+                        $item->category_id,
+                        $this->integer('month'),
+                        $this->integer('year'),
+                    ))
+                    ->map(fn ($item) => $item->category?->name ?? 'Category')
+                    ->unique()
+                    ->values();
+
+                if ($conflictingCategories->isNotEmpty()) {
+                    $validator->errors()->add(
+                        'preset_id',
+                        sprintf(
+                            'A budget already exists for these preset categories this month: %s.',
+                            $conflictingCategories->implode(', '),
+                        ),
+                    );
+                }
+
+                $validationMessage = app(BudgetAllocationSummaryService::class)->getCategoryBudgetValidationMessage(
+                    $departmentId,
+                    $this->integer('month'),
+                    $this->integer('year'),
+                    (float) $preset->items->sum('amount_limit'),
+                );
+
+                if ($validationMessage !== null) {
+                    $validator->errors()->add(
+                        'preset_id',
+                        $validationMessage,
+                    );
+                }
+
+                return;
+            }
 
             if ($budgetRepository->existsActiveConflict(
                 $departmentId,

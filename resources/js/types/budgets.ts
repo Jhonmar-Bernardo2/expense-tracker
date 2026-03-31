@@ -1,5 +1,41 @@
 import type { DepartmentSummary } from './users';
 
+export type BudgetPresetOption = {
+    id: number;
+    name: string;
+    amount_limit: number;
+};
+
+export type BudgetPresetItem = {
+    id: number;
+    category_id: number;
+    category_name: string | null;
+    amount_limit: number;
+    created_at?: string | null;
+    updated_at?: string | null;
+};
+
+export type BudgetPreset = {
+    id: number;
+    category_id?: number | null;
+    name: string;
+    amount_limit?: number | null;
+    items: BudgetPresetItem[];
+    created_at?: string | null;
+    updated_at?: string | null;
+};
+
+export type BudgetCategoryOption = {
+    id: number;
+    name: string;
+    budget_presets: BudgetPresetOption[];
+};
+
+export type BudgetPresetCategoryOption = {
+    id: number;
+    name: string;
+};
+
 export type Budget = {
     id: number;
     department_id: number;

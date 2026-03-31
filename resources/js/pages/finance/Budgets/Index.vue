@@ -10,7 +10,7 @@ import {
     Trash2,
     Wallet,
 } from 'lucide-vue-next';
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import InputError from '@/components/InputError.vue';
 import ResponsiveActionGroup from '@/components/shared/ResponsiveActionGroup.vue';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +38,7 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { displayDepartmentName } from '@/lib/plain-language';
 import { dashboard } from '@/routes/app';
 import { store as storeApprovalVoucher } from '@/routes/app/approval-vouchers';
+import { index as budgetPresets } from '@/routes/finance/category-budget-presets';
 import {
     destroy as destroyBudget,
     index,
@@ -49,25 +50,25 @@ import type {
     BudgetAccessShared,
     BudgetAllocation,
     BudgetAllocationSummary,
+    BudgetCategoryOption,
+    BudgetPreset,
     BreadcrumbItem,
     DepartmentOption,
     DepartmentScope,
 } from '@/types';
-
-type BudgetCategoryOption = {
-    id: number;
-    name: string;
-};
 
 type MonthOption = {
     value: number;
     label: string;
 };
 
+type CategoryBudgetInputSource = 'manual' | 'preset';
+
 const props = defineProps<{
     budgets: Budget[];
     active_allocation: BudgetAllocation | null;
     allocation_summary: BudgetAllocationSummary;
+    budget_presets: BudgetPreset[];
     categories: BudgetCategoryOption[];
     departments: DepartmentOption[];
     department_scope: DepartmentScope;
@@ -96,6 +97,8 @@ const selectedYear = ref(props.filters.year);
 const isAllocationDialogOpen = ref(false);
 const isCategoryDialogOpen = ref(false);
 const editingBudget = ref<Budget | null>(null);
+const categoryBudgetSource = ref<CategoryBudgetInputSource>('manual');
+const selectedBudgetPresetId = ref<number | null>(null);
 
 const allocationForm = useForm({
     month: props.filters.month,
@@ -139,6 +142,8 @@ const categoryAllocationBlockMessage = computed(
 const canCreateCategoryBudget = computed(
     () => hasApprovedAllocation.value && canAllocateCategoryBudgets.value,
 );
+const hasExpenseCategories = computed(() => props.categories.length > 0);
+const allPresets = computed(() => props.budget_presets);
 const selectedDepartmentLabel = computed(() =>
     displayDepartmentName(
         props.financial_management_department,
@@ -218,6 +223,8 @@ const formatCurrency = (value: number) =>
         currency: 'PHP',
     }).format(value);
 
+const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+
 const budgetStatus = (budget: Budget) => {
     if (budget.is_over_budget) {
         return { label: 'Over budget', variant: 'destructive' as const };
@@ -273,6 +280,56 @@ const categoryBudgetSummaryHelper = computed(() => {
     }
 
     return 'Every category allocation is automatically deducted from the remaining department budget.';
+});
+const selectedCategoryOption = computed(
+    () =>
+        props.categories.find((category) => category.id === categoryForm.category_id) ??
+        null,
+);
+const canUsePresetForCategoryBudget = computed(
+    () => allPresets.value.length > 0,
+);
+const selectedBudgetPreset = computed(
+    () =>
+        allPresets.value.find((preset) => preset.id === selectedBudgetPresetId.value) ??
+        null,
+);
+const selectedBudgetPresetTotal = computed(() =>
+    roundCurrency(
+        selectedBudgetPreset.value?.items.reduce(
+            (total, item) => total + item.amount_limit,
+            0,
+        ) ?? 0,
+    ),
+);
+const categoryBudgetSourceHelper = computed(() => {
+    if (editingBudget.value !== null) {
+        return 'Preset source is available only when adding new category budgets.';
+    }
+
+    if (categoryBudgetSource.value === 'preset') {
+        if (!canUsePresetForCategoryBudget.value) {
+            return 'No presets saved yet. Create one in Budget presets first.';
+        }
+
+        if (selectedBudgetPreset.value === null) {
+            return 'Choose a preset to add its saved category budgets.';
+        }
+
+        return `This preset will add ${selectedBudgetPreset.value.items.length} category budget${
+            selectedBudgetPreset.value.items.length === 1 ? '' : 's'
+        } totaling ${formatCurrency(selectedBudgetPresetTotal.value)}.`;
+    }
+
+    if (!hasExpenseCategories.value) {
+        return 'No expense categories available yet.';
+    }
+
+    if (selectedCategoryOption.value === null) {
+        return 'Select a category and enter a budget amount manually.';
+    }
+
+    return 'Choose a category and enter the budget amount manually.';
 });
 
 const applyFilters = () => {
@@ -333,9 +390,15 @@ const resetCategoryForm = () => {
     categoryForm.month = selectedMonth.value;
     categoryForm.year = selectedYear.value;
     categoryForm.amount_limit = '';
+    categoryBudgetSource.value = 'manual';
+    selectedBudgetPresetId.value = null;
 };
 
 const openCreateCategoryDialog = () => {
+    if (!hasExpenseCategories.value) {
+        return;
+    }
+
     editingBudget.value = null;
     resetCategoryForm();
     isCategoryDialogOpen.value = true;
@@ -348,6 +411,8 @@ const openEditCategoryDialog = (budget: Budget) => {
     categoryForm.year = budget.year;
     categoryForm.amount_limit = budget.amount_limit.toFixed(2);
     categoryForm.clearErrors();
+    categoryBudgetSource.value = 'manual';
+    selectedBudgetPresetId.value = null;
     isCategoryDialogOpen.value = true;
 };
 
@@ -359,18 +424,47 @@ const closeCategoryDialog = () => {
 
 const submitCategoryBudget = () => {
     if (editingBudget.value === null) {
-        categoryForm.post(storeBudget().url, {
-            preserveScroll: true,
-            onSuccess: () => closeCategoryDialog(),
-        });
+        if (categoryBudgetSource.value === 'preset') {
+            categoryForm
+                .transform((data) => ({
+                    ...data,
+                    source: 'preset',
+                    preset_id: selectedBudgetPresetId.value,
+                    category_id: null,
+                    amount_limit: null,
+                }))
+                .post(storeBudget().url, {
+                    preserveScroll: true,
+                    onSuccess: () => closeCategoryDialog(),
+                });
+
+            return;
+        }
+
+        categoryForm
+            .transform((data) => ({
+                ...data,
+                source: 'manual',
+                preset_id: null,
+            }))
+            .post(storeBudget().url, {
+                preserveScroll: true,
+                onSuccess: () => closeCategoryDialog(),
+            });
 
         return;
     }
 
-    categoryForm.put(updateBudget(editingBudget.value.id).url, {
-        preserveScroll: true,
-        onSuccess: () => closeCategoryDialog(),
-    });
+    categoryForm
+        .transform((data) => ({
+            ...data,
+            source: 'manual',
+            preset_id: null,
+        }))
+        .put(updateBudget(editingBudget.value.id).url, {
+            preserveScroll: true,
+            onSuccess: () => closeCategoryDialog(),
+        });
 };
 
 const removeCategoryBudget = (budget: Budget) => {
@@ -386,6 +480,25 @@ const removeCategoryBudget = (budget: Budget) => {
         preserveScroll: true,
     });
 };
+
+watch(categoryBudgetSource, (source) => {
+    if (source !== 'preset') {
+        selectedBudgetPresetId.value = null;
+
+        return;
+    }
+
+    if (!canUsePresetForCategoryBudget.value) {
+        categoryBudgetSource.value = 'manual';
+        selectedBudgetPresetId.value = null;
+
+        return;
+    }
+
+    if (selectedBudgetPreset.value === null) {
+        selectedBudgetPresetId.value = allPresets.value[0]?.id ?? null;
+    }
+});
 
 const metricPanelClasses = (
     tone: 'info' | 'warning' | 'danger' | 'success',
@@ -436,6 +549,14 @@ const metricPanelClasses = (
                     </div>
 
                     <ResponsiveActionGroup align="end">
+                            <Button
+                                variant="outline"
+                                class="w-full sm:w-auto"
+                                @click="router.get(budgetPresets().url)"
+                            >
+                                <PiggyBank class="mr-2 size-4" />
+                                Budget presets
+                            </Button>
                             <Dialog
                                 v-if="canRequestAllocations"
                                 v-model:open="isAllocationDialogOpen"
@@ -862,7 +983,43 @@ const metricPanelClasses = (
                             {{ categoryAllocationBlockMessage }}
                         </div>
 
-                        <div class="grid gap-4 sm:grid-cols-3">
+                        <div
+                            v-if="!editingBudget"
+                            class="grid gap-2"
+                        >
+                            <Label for="category-budget-source"
+                                >Budget source</Label
+                            >
+                            <Select v-model="categoryBudgetSource">
+                                <SelectTrigger id="category-budget-source">
+                                    <SelectValue
+                                        placeholder="Select input mode"
+                                    />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="manual">
+                                        Manual input
+                                    </SelectItem>
+                                    <SelectItem
+                                        value="preset"
+                                        :disabled="
+                                            !canUsePresetForCategoryBudget
+                                        "
+                                    >
+                                        Use preset
+                                    </SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <p class="text-xs text-muted-foreground">
+                                {{ categoryBudgetSourceHelper }}
+                            </p>
+                            <InputError :message="categoryForm.errors.source" />
+                        </div>
+
+                        <div
+                            v-if="editingBudget || categoryBudgetSource === 'manual'"
+                            class="grid gap-4 sm:grid-cols-2"
+                        >
                             <div class="grid gap-2">
                                 <Label for="category-budget-category"
                                     >Category</Label
@@ -889,7 +1046,91 @@ const metricPanelClasses = (
                                     :message="categoryForm.errors.category_id"
                                 />
                             </div>
+                        </div>
 
+                        <div
+                            v-if="!editingBudget && categoryBudgetSource === 'preset'"
+                            class="space-y-4"
+                        >
+                            <div class="grid gap-2">
+                                <Label for="category-budget-preset">Preset</Label>
+                                <Select v-model="selectedBudgetPresetId">
+                                    <SelectTrigger id="category-budget-preset">
+                                        <SelectValue placeholder="Select preset" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem
+                                            v-for="preset in allPresets"
+                                            :key="preset.id"
+                                            :value="preset.id"
+                                        >
+                                            {{ preset.name }}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <p class="text-xs text-muted-foreground">
+                                    Choose a preset to add all of its saved
+                                    category budgets at once.
+                                </p>
+                                <InputError
+                                    :message="categoryForm.errors.preset_id"
+                                />
+                            </div>
+
+                            <div
+                                v-if="selectedBudgetPreset"
+                                class="rounded-xl border bg-muted/20 p-4"
+                            >
+                                <div
+                                    class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"
+                                >
+                                    <div>
+                                        <div class="text-sm font-medium text-foreground">
+                                            {{ selectedBudgetPreset.name }}
+                                        </div>
+                                        <p class="text-xs text-muted-foreground">
+                                            {{
+                                                selectedBudgetPreset.items.length
+                                            }}
+                                            {{
+                                                selectedBudgetPreset.items.length ===
+                                                1
+                                                    ? 'category budget'
+                                                    : 'category budgets'
+                                            }}
+                                            will be created from this preset.
+                                        </p>
+                                    </div>
+                                    <Badge variant="secondary" class="rounded-md">
+                                        Total:
+                                        {{
+                                            formatCurrency(
+                                                selectedBudgetPresetTotal,
+                                            )
+                                        }}
+                                    </Badge>
+                                </div>
+
+                                <div class="mt-3 space-y-2">
+                                    <div
+                                        v-for="item in selectedBudgetPreset.items"
+                                        :key="item.id"
+                                        class="flex items-center justify-between gap-3 rounded-md border border-border/60 bg-background px-3 py-2 text-sm"
+                                    >
+                                        <span class="truncate text-foreground">
+                                            {{ item.category_name ?? 'Category' }}
+                                        </span>
+                                        <span class="tabular-nums text-muted-foreground">
+                                            {{
+                                                formatCurrency(item.amount_limit)
+                                            }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid gap-4 sm:grid-cols-2">
                             <div class="grid gap-2">
                                 <Label for="category-budget-month">Month</Label>
                                 <Select v-model="categoryForm.month">
@@ -937,7 +1178,10 @@ const metricPanelClasses = (
                             </div>
                         </div>
 
-                        <div class="grid gap-2">
+                        <div
+                            v-if="editingBudget || categoryBudgetSource === 'manual'"
+                            class="grid gap-2"
+                        >
                             <Label for="category-budget-amount"
                                 >Category budget</Label
                             >
@@ -1001,7 +1245,9 @@ const metricPanelClasses = (
 
                     <Button
                         v-if="canManageCategoryBudgets"
-                        :disabled="!canCreateCategoryBudget"
+                        :disabled="
+                            !canCreateCategoryBudget || !hasExpenseCategories
+                        "
                         @click="openCreateCategoryDialog"
                     >
                         <Plus class="mr-2 size-4" />

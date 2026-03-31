@@ -11,6 +11,7 @@ use App\Http\Controllers\App\ReportsController;
 use App\Http\Controllers\App\TransactionController;
 use App\Http\Controllers\Auth\AuthViewController;
 use App\Http\Controllers\Finance\BudgetController;
+use App\Http\Controllers\Finance\CategoryBudgetPresetController;
 use Illuminate\Support\Facades\Route;
 use Laravel\Fortify\Features;
 
@@ -85,6 +86,10 @@ Route::middleware(['auth', 'active', 'verified'])->group(function () {
 
     Route::prefix('finance')->name('finance.')->group(function () {
         Route::resource('budgets', BudgetController::class)
+            ->only(['index', 'store', 'update', 'destroy']);
+
+        Route::resource('category-budget-presets', CategoryBudgetPresetController::class)
+            ->parameters(['category-budget-presets' => 'categoryBudgetPreset'])
             ->only(['index', 'store', 'update', 'destroy']);
     });
 

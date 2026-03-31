@@ -6,6 +6,7 @@ use App\Models\ApprovalVoucher;
 use App\Models\Budget;
 use App\Models\BudgetAllocation;
 use App\Models\Category;
+use App\Models\CategoryBudgetPreset;
 use App\Models\Department;
 use App\Models\Transaction;
 use App\Models\User;
@@ -32,6 +33,7 @@ class BudgetTest extends TestCase
         $category = $this->createCategory();
 
         $this->get(route('finance.budgets.index'))->assertRedirect(route('login'));
+        $this->get(route('finance.category-budget-presets.index'))->assertRedirect(route('login'));
 
         $this->post(route('app.approval-vouchers.store'), [
             'module' => 'allocation',
@@ -57,6 +59,10 @@ class BudgetTest extends TestCase
 
         $this->actingAs($staff)
             ->get(route('finance.budgets.index'))
+            ->assertForbidden();
+
+        $this->actingAs($staff)
+            ->get(route('finance.category-budget-presets.index'))
             ->assertForbidden();
 
         $this->actingAs($staff)
@@ -163,6 +169,15 @@ class BudgetTest extends TestCase
             );
 
         $this->actingAs($admin)
+            ->get(route('finance.category-budget-presets.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('finance/BudgetPresets/Index')
+                ->where('budget_access.can_view_page', true)
+                ->where('budget_access.can_manage_category_budgets', false)
+            );
+
+        $this->actingAs($admin)
             ->post(route('app.approval-vouchers.store'), [
                 'module' => 'allocation',
                 'action' => 'create',
@@ -180,6 +195,326 @@ class BudgetTest extends TestCase
                 'amount_limit' => 7000,
             ])
             ->assertForbidden();
+
+        $this->actingAs($admin)
+            ->post(route('finance.category-budget-presets.store'), [
+                'name' => 'Utilities default',
+                'items' => [
+                    [
+                        'category_id' => $category->id,
+                        'amount_limit' => 1500,
+                    ],
+                ],
+            ])
+            ->assertForbidden();
+    }
+
+    public function test_financial_management_can_view_budget_presets_page(): void
+    {
+        $financialDepartment = $this->financialManagementDepartment();
+        $financialUser = User::factory()->for($financialDepartment)->create();
+        $food = $this->createCategory(['name' => 'Food']);
+        $travel = $this->createCategory(['name' => 'Travel']);
+        $preset = $this->createPreset('Operations bundle', [
+            [
+                'category_id' => $food->id,
+                'amount_limit' => 2500,
+            ],
+            [
+                'category_id' => $travel->id,
+                'amount_limit' => 3200,
+            ],
+        ]);
+
+        $this->actingAs($financialUser)
+            ->get(route('finance.category-budget-presets.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('finance/BudgetPresets/Index')
+                ->where('budget_presets.0.id', $preset->id)
+                ->where('budget_presets.0.name', 'Operations bundle')
+                ->where('budget_presets.0.items.0.category_id', $food->id)
+                ->where('budget_presets.0.items.1.category_id', $travel->id)
+                ->where('categories.0.id', $food->id)
+                ->where('categories.1.id', $travel->id)
+            );
+    }
+
+    public function test_financial_management_can_create_update_and_delete_category_budget_presets(): void
+    {
+        $financialDepartment = $this->financialManagementDepartment();
+        $financialUser = User::factory()->for($financialDepartment)->create();
+        $utilities = $this->createCategory(['name' => 'Utilities']);
+        $travel = $this->createCategory(['name' => 'Travel']);
+        $food = $this->createCategory(['name' => 'Food']);
+
+        $this->actingAs($financialUser)
+            ->post(route('finance.category-budget-presets.store'), [
+                'name' => 'Operations starter',
+                'items' => [
+                    [
+                        'category_id' => $utilities->id,
+                        'amount_limit' => 2500,
+                    ],
+                    [
+                        'category_id' => $travel->id,
+                        'amount_limit' => 4000,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $preset = CategoryBudgetPreset::query()->sole();
+
+        $this->assertDatabaseHas('category_budget_presets', [
+            'id' => $preset->id,
+            'name' => 'Operations starter',
+        ]);
+        $this->assertDatabaseHas('category_budget_preset_items', [
+            'category_budget_preset_id' => $preset->id,
+            'category_id' => $utilities->id,
+            'amount_limit' => 2500,
+        ]);
+        $this->assertDatabaseHas('category_budget_preset_items', [
+            'category_budget_preset_id' => $preset->id,
+            'category_id' => $travel->id,
+            'amount_limit' => 4000,
+        ]);
+
+        $this->actingAs($financialUser)
+            ->put(route('finance.category-budget-presets.update', $preset), [
+                'name' => 'Operations backup',
+                'items' => [
+                    [
+                        'category_id' => $utilities->id,
+                        'amount_limit' => 3200,
+                    ],
+                    [
+                        'category_id' => $food->id,
+                        'amount_limit' => 1800,
+                    ],
+                ],
+            ])
+            ->assertRedirect();
+
+        $this->assertDatabaseHas('category_budget_presets', [
+            'id' => $preset->id,
+            'name' => 'Operations backup',
+        ]);
+        $this->assertDatabaseHas('category_budget_preset_items', [
+            'category_budget_preset_id' => $preset->id,
+            'category_id' => $utilities->id,
+            'amount_limit' => 3200,
+        ]);
+        $this->assertDatabaseHas('category_budget_preset_items', [
+            'category_budget_preset_id' => $preset->id,
+            'category_id' => $food->id,
+            'amount_limit' => 1800,
+        ]);
+        $this->assertDatabaseMissing('category_budget_preset_items', [
+            'category_budget_preset_id' => $preset->id,
+            'category_id' => $travel->id,
+        ]);
+
+        $this->actingAs($financialUser)
+            ->delete(route('finance.category-budget-presets.destroy', $preset))
+            ->assertRedirect();
+
+        $this->assertDatabaseCount('category_budget_presets', 0);
+        $this->assertDatabaseCount('category_budget_preset_items', 0);
+    }
+
+    public function test_regular_staff_cannot_manage_category_budget_presets(): void
+    {
+        $operationsDepartment = Department::factory()->create(['name' => 'Operations']);
+        $staff = User::factory()->for($operationsDepartment)->create();
+        $category = $this->createCategory(['name' => 'Utilities']);
+        $preset = $this->createPreset('Utilities default', [
+            [
+                'category_id' => $category->id,
+                'amount_limit' => 1800,
+            ],
+        ]);
+
+        $this->actingAs($staff)
+            ->post(route('finance.category-budget-presets.store'), [
+                'name' => 'Operations utility',
+                'items' => [
+                    [
+                        'category_id' => $category->id,
+                        'amount_limit' => 1500,
+                    ],
+                ],
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($staff)
+            ->put(route('finance.category-budget-presets.update', $preset), [
+                'name' => 'Operations utility',
+                'items' => [
+                    [
+                        'category_id' => $category->id,
+                        'amount_limit' => 2100,
+                    ],
+                ],
+            ])
+            ->assertForbidden();
+
+        $this->actingAs($staff)
+            ->delete(route('finance.category-budget-presets.destroy', $preset))
+            ->assertForbidden();
+    }
+
+    public function test_category_budget_presets_require_unique_names_distinct_expense_categories_and_positive_amounts(): void
+    {
+        $financialDepartment = $this->financialManagementDepartment();
+        $financialUser = User::factory()->for($financialDepartment)->create();
+        $expenseCategory = $this->createCategory(['name' => 'Food']);
+        $secondExpenseCategory = $this->createCategory(['name' => 'Travel']);
+        $incomeCategory = $this->createCategory([
+            'name' => 'Allowance',
+            'type' => 'income',
+        ]);
+
+        $this->createPreset('Starter preset', [
+            [
+                'category_id' => $expenseCategory->id,
+                'amount_limit' => 1500,
+            ],
+        ]);
+
+        $this->actingAs($financialUser)
+            ->from(route('finance.category-budget-presets.index'))
+            ->post(route('finance.category-budget-presets.store'), [
+                'name' => 'Starter preset',
+                'items' => [
+                    [
+                        'category_id' => $secondExpenseCategory->id,
+                        'amount_limit' => 2200,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('finance.category-budget-presets.index'))
+            ->assertSessionHasErrors('name');
+
+        $this->actingAs($financialUser)
+            ->from(route('finance.category-budget-presets.index'))
+            ->post(route('finance.category-budget-presets.store'), [
+                'name' => 'Operations bundle',
+                'items' => [
+                    [
+                        'category_id' => $expenseCategory->id,
+                        'amount_limit' => 1800,
+                    ],
+                    [
+                        'category_id' => $expenseCategory->id,
+                        'amount_limit' => 900,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('finance.category-budget-presets.index'))
+            ->assertSessionHasErrors('items.1.category_id');
+
+        $this->actingAs($financialUser)
+            ->from(route('finance.category-budget-presets.index'))
+            ->post(route('finance.category-budget-presets.store'), [
+                'name' => 'Income preset',
+                'items' => [
+                    [
+                        'category_id' => $incomeCategory->id,
+                        'amount_limit' => 0,
+                    ],
+                ],
+            ])
+            ->assertRedirect(route('finance.category-budget-presets.index'))
+            ->assertSessionHasErrors([
+                'items.0.category_id',
+                'items.0.amount_limit',
+            ]);
+    }
+
+    public function test_budget_index_includes_category_budget_preset_metadata_in_category_options(): void
+    {
+        $financialDepartment = $this->financialManagementDepartment();
+        $financialUser = User::factory()->for($financialDepartment)->create();
+        $category = $this->createCategory(['name' => 'Food']);
+        $travel = $this->createCategory(['name' => 'Travel']);
+        $preset = $this->createPreset('Starter preset', [
+            [
+                'category_id' => $category->id,
+                'amount_limit' => 2750,
+            ],
+            [
+                'category_id' => $travel->id,
+                'amount_limit' => 4100,
+            ],
+        ]);
+
+        $this->actingAs($financialUser)
+            ->get(route('finance.budgets.index'))
+            ->assertOk()
+            ->assertInertia(fn (Assert $page) => $page
+                ->component('finance/Budgets/Index')
+                ->where('budget_presets.0.id', $preset->id)
+                ->where('budget_presets.0.name', 'Starter preset')
+                ->where('budget_presets.0.items.0.category_id', $category->id)
+                ->where('budget_presets.0.items.0.amount_limit', 2750)
+                ->where('categories.0.id', $category->id)
+                ->where('categories.0.name', $category->name)
+                ->where('categories.0.budget_presets.0.id', $preset->id)
+                ->where('categories.0.budget_presets.0.name', 'Starter preset')
+                ->where('categories.0.budget_presets.0.amount_limit', 2750)
+            );
+    }
+
+    public function test_financial_management_can_add_multiple_category_budgets_from_a_preset(): void
+    {
+        $financialDepartment = $this->financialManagementDepartment();
+        $financialUser = User::factory()->for($financialDepartment)->create();
+        $food = $this->createCategory(['name' => 'Food']);
+        $travel = $this->createCategory(['name' => 'Travel']);
+        $preset = $this->createPreset('Operations bundle', [
+            [
+                'category_id' => $food->id,
+                'amount_limit' => 2500,
+            ],
+            [
+                'category_id' => $travel->id,
+                'amount_limit' => 3200,
+            ],
+        ]);
+
+        $this->createAllocation($financialUser, $financialDepartment, [
+            'month' => 5,
+            'year' => 2026,
+            'amount_limit' => 10000,
+        ]);
+
+        $this->actingAs($financialUser)
+            ->from(route('finance.budgets.index'))
+            ->post(route('finance.budgets.store'), [
+                'source' => 'preset',
+                'preset_id' => $preset->id,
+                'month' => 5,
+                'year' => 2026,
+            ])
+            ->assertRedirect(route('finance.budgets.index'))
+            ->assertSessionHas('success', 'Category budgets added from preset.');
+
+        $this->assertDatabaseHas('budgets', [
+            'department_id' => $financialDepartment->id,
+            'category_id' => $food->id,
+            'month' => 5,
+            'year' => 2026,
+            'amount_limit' => 2500,
+        ]);
+        $this->assertDatabaseHas('budgets', [
+            'department_id' => $financialDepartment->id,
+            'category_id' => $travel->id,
+            'month' => 5,
+            'year' => 2026,
+            'amount_limit' => 3200,
+        ]);
     }
 
     public function test_financial_management_cannot_submit_monthly_budget_removal_requests(): void
@@ -385,5 +720,27 @@ class BudgetTest extends TestCase
             'year' => 2026,
             'amount_limit' => 2500.00,
         ], $attributes));
+    }
+
+    /**
+     * @param  list<array{category_id: int, amount_limit: int|float|string}>  $items
+     */
+    private function createPreset(string $name, array $items): CategoryBudgetPreset
+    {
+        $preset = CategoryBudgetPreset::query()->create([
+            'name' => $name,
+        ]);
+
+        $preset->categories()->sync(
+            collect($items)
+                ->mapWithKeys(fn (array $item) => [
+                    $item['category_id'] => [
+                        'amount_limit' => $item['amount_limit'],
+                    ],
+                ])
+                ->all(),
+        );
+
+        return $preset->fresh(['items.category', 'categories']);
     }
 }

@@ -29,6 +29,7 @@ import {
 import { dashboard } from '@/routes/app';
 import { index as approvalVouchers } from '@/routes/app/approval-vouchers';
 import { index as budgets } from '@/routes/finance/budgets';
+import { index as budgetPresets } from '@/routes/finance/category-budget-presets';
 import { index as categories } from '@/routes/admin/categories';
 import { index as departments } from '@/routes/admin/departments';
 import { index as reports } from '@/routes/app/reports';
@@ -77,16 +78,25 @@ const mainNavItems = computed<NavItem[]>(
                 href: reports(),
                 icon: BarChart3,
             },
-            ...(budgetAccess.value.can_view_page
-                ? [
-                      {
-                          title: 'Budgets',
-                          href: budgets(),
-                          icon: PiggyBank,
-                      },
-                  ]
-                : []),
         ] satisfies NavItem[],
+);
+
+const financeNavItems = computed<NavItem[]>(
+    () =>
+        (budgetAccess.value.can_view_page
+            ? [
+                  {
+                      title: 'Budgets',
+                      href: budgets(),
+                      icon: PiggyBank,
+                  },
+                  {
+                      title: 'Budget presets',
+                      href: budgetPresets(),
+                      icon: Tags,
+                  },
+              ]
+            : []) satisfies NavItem[],
 );
 
 const footerNavItems: NavItem[] = [
@@ -137,6 +147,11 @@ const adminNavItems: NavItem[] = [
 
         <SidebarContent>
             <NavMain :items="mainNavItems" label="Platform" />
+            <NavMain
+                v-if="financeNavItems.length > 0"
+                :items="financeNavItems"
+                label="Finance"
+            />
             <NavMain
                 v-if="isAdmin"
                 :items="adminNavItems"

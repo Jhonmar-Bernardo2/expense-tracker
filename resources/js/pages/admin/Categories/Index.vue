@@ -87,6 +87,27 @@ const submitLabel = computed(() =>
     editingCategory.value ? 'Save changes' : 'Create category',
 );
 
+const formatCurrency = (value: number | null) =>
+    value === null
+        ? 'Not set'
+        : new Intl.NumberFormat('en-PH', {
+              style: 'currency',
+              currency: 'PHP',
+          }).format(value);
+
+const formatPresetCountLabel = (count: number) =>
+    count === 0 ? 'No presets saved' : `${count} preset${count === 1 ? '' : 's'} saved`;
+
+const formatPresetSummary = (category: Category) =>
+    category.budget_presets.length === 0
+        ? 'Add presets in Finance > Budgets.'
+        : category.budget_presets
+              .map(
+                  (preset) =>
+                      `${preset.name} (${formatCurrency(preset.amount_limit)})`,
+              )
+              .join(', ');
+
 const openCreateDialog = () => {
     editingCategory.value = null;
     form.reset();
@@ -392,6 +413,28 @@ const deleteCategory = (category: Category) => {
                                             {{ category.budget_count }} budgets
                                         </div>
                                     </div>
+                                    <div>
+                                        <div class="text-xs text-muted-foreground">
+                                            Budget presets
+                                        </div>
+                                        <div class="mt-1 text-sm text-muted-foreground">
+                                            {{
+                                                formatPresetCountLabel(
+                                                    category.budget_preset_count,
+                                                )
+                                            }}
+                                        </div>
+                                        <div class="mt-1 text-xs text-muted-foreground">
+                                            {{ formatPresetSummary(category) }}
+                                        </div>
+                                        <div
+                                            v-if="category.budget_preset_count > 0"
+                                            class="mt-1 text-xs text-muted-foreground"
+                                        >
+                                            Delete is blocked while presets
+                                            exist.
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <ResponsiveActionGroup class="mt-4" align="end">
@@ -443,6 +486,9 @@ const deleteCategory = (category: Category) => {
                                         <th class="px-4 py-3 font-medium">
                                             Usage
                                         </th>
+                                        <th class="px-4 py-3 font-medium">
+                                            Budget presets
+                                        </th>
                                         <th
                                             class="px-4 py-3 text-right font-medium"
                                         >
@@ -481,6 +527,27 @@ const deleteCategory = (category: Category) => {
                                             transactions
                                             <span class="mx-1">&middot;</span>
                                             {{ category.budget_count }} budgets
+                                        </td>
+                                        <td
+                                            class="px-4 py-3 text-muted-foreground"
+                                        >
+                                            <div class="font-medium text-foreground">
+                                                {{
+                                                    formatPresetCountLabel(
+                                                        category.budget_preset_count,
+                                                    )
+                                                }}
+                                            </div>
+                                            <div class="mt-1 text-xs text-muted-foreground">
+                                                {{ formatPresetSummary(category) }}
+                                            </div>
+                                            <div
+                                                v-if="category.budget_preset_count > 0"
+                                                class="mt-1 text-xs text-muted-foreground"
+                                            >
+                                                Delete is blocked while presets
+                                                exist.
+                                            </div>
                                         </td>
                                         <td class="px-4 py-3">
                                             <ResponsiveActionGroup

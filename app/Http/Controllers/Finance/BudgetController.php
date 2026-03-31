@@ -8,6 +8,7 @@ use App\Http\Requests\Finance\UpsertBudgetRequest;
 use App\Http\Resources\Finance\BudgetIndexPageResource;
 use App\Repositories\BudgetAllocationRepository;
 use App\Repositories\BudgetRepository;
+use App\Repositories\CategoryBudgetPresetRepository;
 use App\Repositories\CategoryRepository;
 use App\Services\Budget\BudgetAccessService;
 use App\Services\Budget\BudgetAllocationSummaryService;
@@ -26,6 +27,7 @@ class BudgetController extends Controller
     public function __construct(
         private readonly BudgetRepository $budgetRepository,
         private readonly BudgetAllocationRepository $budgetAllocationRepository,
+        private readonly CategoryBudgetPresetRepository $categoryBudgetPresetRepository,
         private readonly CategoryRepository $categoryRepository,
         private readonly BudgetAccessService $budgetAccessService,
         private readonly BudgetAllocationSummaryService $budgetAllocationSummaryService,
@@ -50,6 +52,7 @@ class BudgetController extends Controller
             'budgets' => $this->budgetRepository->getForIndex($financialManagementDepartment->id, $month, $year),
             'active_allocation' => $periodSummary['active_allocation'],
             'allocation_summary' => $periodSummary['summary'],
+            'budget_presets' => $this->categoryBudgetPresetRepository->getForManagement(),
             'categories' => $this->categoryRepository->getExpenseOptions(),
             'financial_management_department' => $financialManagementDepartment,
             'month' => $month,
@@ -72,7 +75,12 @@ class BudgetController extends Controller
             $request->validated(),
         );
 
-        return back()->with('success', 'Category budget added.');
+        return back()->with(
+            'success',
+            $request->input('source', 'manual') === 'preset'
+                ? 'Category budgets added from preset.'
+                : 'Category budget added.',
+        );
     }
 
     public function update(

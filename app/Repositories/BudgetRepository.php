@@ -4,11 +4,13 @@ namespace App\Repositories;
 
 use App\Enums\TransactionType;
 use App\Models\Budget;
+use App\Models\CategoryBudgetPreset;
 use App\Models\Transaction;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\DB;
 
 class BudgetRepository
 {
@@ -82,6 +84,45 @@ class BudgetRepository
             'year' => $data['year'],
             'amount_limit' => $data['amount_limit'],
         ]);
+    }
+
+    /**
+     * @return Collection<int, Budget>
+     */
+    public function createManyFromPreset(
+        User $user,
+        int $departmentId,
+        CategoryBudgetPreset $preset,
+        int $month,
+        int $year,
+        ?int $originApprovalVoucherId = null,
+    ): Collection {
+        $preset->loadMissing('items');
+
+        return DB::transaction(function () use (
+            $user,
+            $departmentId,
+            $preset,
+            $month,
+            $year,
+            $originApprovalVoucherId,
+        ): Collection {
+            $createdBudgets = new Collection();
+
+            foreach ($preset->items as $item) {
+                $createdBudgets->push(Budget::query()->create([
+                    'user_id' => $user->id,
+                    'department_id' => $departmentId,
+                    'origin_approval_voucher_id' => $originApprovalVoucherId,
+                    'category_id' => $item->category_id,
+                    'month' => $month,
+                    'year' => $year,
+                    'amount_limit' => $item->amount_limit,
+                ]));
+            }
+
+            return $createdBudgets;
+        });
     }
 
     /**

@@ -15,6 +15,7 @@ class CategoryRepository
     {
         return Category::query()
             ->when($type, fn ($query) => $query->where('type', $type->value))
+            ->with(['budgetPresets' => fn ($query) => $query->orderBy('name')])
             ->withCount(['transactions', 'budgets'])
             ->orderBy('type')
             ->orderBy('name')
@@ -33,6 +34,7 @@ class CategoryRepository
     {
         return Category::query()
             ->where('type', TransactionType::Expense->value)
+            ->with(['budgetPresets' => fn ($query) => $query->orderBy('name')])
             ->orderBy('name')
             ->get([
                 'id',
@@ -69,7 +71,8 @@ class CategoryRepository
     public function hasRelatedRecords(Category $category): bool
     {
         return $category->transactions()->exists()
-            || $category->budgets()->exists();
+            || $category->budgets()->exists()
+            || $category->budgetPresets()->exists();
     }
 
     public function delete(Category $category): void
