@@ -11,7 +11,7 @@ class BudgetAllocationSummaryService
 {
     public const MISSING_APPROVED_BUDGET_MESSAGE = 'An approved monthly total allocation is required before category budgets can be managed.';
 
-    public const NO_AVAILABLE_BUDGET_MESSAGE = 'Wala nang available budget. Kailangan munang mag-request ulit ng panibagong budget kay Admin.';
+    public const NO_AVAILABLE_BUDGET_MESSAGE = 'No available budget remains. Request a new monthly budget from Admin first.';
 
     public function __construct(
         private readonly BudgetRepository $budgetRepository,
@@ -140,7 +140,7 @@ class BudgetAllocationSummaryService
 
         if (round($requestedAmount, 2) > $capacity['max_allocatable_amount']) {
             return sprintf(
-                'Hindi puwedeng lumagpas ang total ng budget per category sa approved budget ni Admin. Available na lang para ma-allocate: %s.',
+                'The total category budget cannot exceed the Admin-approved monthly budget. Available to allocate: %s.',
                 $this->formatCurrency($capacity['max_allocatable_amount']),
             );
         }
