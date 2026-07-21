@@ -5,6 +5,7 @@ namespace App\Http\Requests\Admin;
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Enums\UserRole;
+use App\Models\Department;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -57,6 +58,22 @@ class UpsertUserRequest extends FormRequest
                 'required',
                 'integer',
                 'exists:departments,id',
+                function (string $attribute, mixed $value, \Closure $fail): void {
+                    $role = UserRole::tryFrom((string) $this->input('role'));
+
+                    if ($role !== UserRole::Finance) {
+                        return;
+                    }
+
+                    $isFinancialManagementDepartment = Department::query()
+                        ->whereKey($value)
+                        ->where('is_financial_management', true)
+                        ->exists();
+
+                    if (! $isFinancialManagementDepartment) {
+                        $fail('Finance users must belong to the Financial Management department.');
+                    }
+                },
             ],
             'is_active' => [
                 $isUpdate ? 'required' : 'nullable',

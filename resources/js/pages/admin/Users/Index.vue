@@ -64,7 +64,9 @@ const breadcrumbs: BreadcrumbItem[] = [
     },
 ];
 
-const defaultRole = computed<UserRole>(() => props.roles[0]?.value ?? 'staff');
+const defaultRole = computed<UserRole>(
+    () => props.roles.find((role) => role.value === 'staff')?.value ?? 'staff',
+);
 const defaultDepartmentId = computed<number | null>(
     () => props.departments[0]?.id ?? null,
 );
@@ -205,8 +207,17 @@ const toggleStatus = (user: ManagedUser) => {
     );
 };
 
-const roleBadgeVariant = (role: UserRole) =>
-    role === 'admin' ? 'default' : 'secondary';
+const roleBadgeVariant = (role: UserRole) => {
+    if (role === 'admin') {
+        return 'default';
+    }
+
+    if (role === 'finance') {
+        return 'secondary';
+    }
+
+    return 'outline';
+};
 
 const canManageUser = (user: ManagedUser) => !user.is_system_account;
 </script>

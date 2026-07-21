@@ -18,8 +18,17 @@ export type UseTwoFactorAuthReturn = {
 };
 
 const fetchJson = async <T>(url: string): Promise<T> => {
+    const csrfToken = document
+        .querySelector<HTMLMetaElement>('meta[name="csrf-token"]')
+        ?.content;
+
     const response = await fetch(url, {
-        headers: { Accept: 'application/json' },
+        credentials: 'same-origin',
+        headers: {
+            Accept: 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
+        },
     });
 
     if (!response.ok) {

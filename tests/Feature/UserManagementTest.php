@@ -113,7 +113,7 @@ class UserManagementTest extends TestCase
                 ->where('departments.1.is_financial_management', true)
                 ->where('departments.1.is_locked', true)
                 ->where('departments.2.name', 'General')
-                ->has('roles', 2)
+                ->has('roles', 3)
             );
     }
 
@@ -179,6 +179,52 @@ class UserManagementTest extends TestCase
         $this->assertSame($secondaryDepartment->id, $managedUser->department_id);
         $this->assertFalse($managedUser->is_active);
         $this->assertNotNull($managedUser->email_verified_at);
+    }
+
+    public function test_admin_can_create_finance_user_for_financial_management_department(): void
+    {
+        $admin = $this->createAdmin();
+        $financialManagementDepartment = Department::query()
+            ->where('is_financial_management', true)
+            ->firstOrFail();
+
+        $this->actingAs($admin)
+            ->post(route('admin.users.store'), [
+                'name' => 'Finance User',
+                'email' => 'finance@example.com',
+                'role' => UserRole::Finance->value,
+                'department_id' => $financialManagementDepartment->id,
+                'password' => 'password',
+                'password_confirmation' => 'password',
+            ])
+            ->assertRedirect();
+
+        $createdUser = User::query()->where('email', 'finance@example.com')->first();
+
+        $this->assertNotNull($createdUser);
+        $this->assertSame(UserRole::Finance, $createdUser->role);
+        $this->assertSame($financialManagementDepartment->id, $createdUser->department_id);
+    }
+
+    public function test_finance_role_requires_financial_management_department(): void
+    {
+        $admin = $this->createAdmin();
+        $department = Department::factory()->create([
+            'name' => 'Operations',
+        ]);
+
+        $this->actingAs($admin)
+            ->from(route('admin.users.index'))
+            ->post(route('admin.users.store'), [
+                'name' => 'Finance User',
+                'email' => 'finance@example.com',
+                'role' => UserRole::Finance->value,
+                'department_id' => $department->id,
+                'password' => 'password',
+                'password_confirmation' => 'password',
+            ])
+            ->assertRedirect(route('admin.users.index'))
+            ->assertSessionHasErrors('department_id');
     }
 
     public function test_admin_can_toggle_user_status(): void
@@ -280,11 +326,17 @@ class UserManagementTest extends TestCase
         $this->assertGuest();
     }
 
-    public function test_active_admin_and_staff_can_still_access_business_pages(): void
+    public function test_active_admin_finance_and_staff_can_access_expected_pages(): void
     {
         $department = Department::factory()->create();
         $admin = User::factory()->admin()->create([
             'department_id' => $department->id,
+        ]);
+        $financialManagementDepartment = Department::query()
+            ->where('is_financial_management', true)
+            ->firstOrFail();
+        $finance = User::factory()->finance()->create([
+            'department_id' => $financialManagementDepartment->id,
         ]);
         $staff = User::factory()->create([
             'department_id' => $department->id,
@@ -298,13 +350,17 @@ class UserManagementTest extends TestCase
             ->get(route('admin.categories.index'))
             ->assertOk();
 
+        $this->actingAs($finance)
+            ->get(route('app.dashboard'))
+            ->assertOk();
+
         $this->actingAs($staff)
             ->get(route('app.dashboard'))
             ->assertOk();
 
         $this->actingAs($staff)
             ->get(route('admin.categories.index'))
-            ->assertOk();
+            ->assertForbidden();
     }
 
     private function createAdmin(): User

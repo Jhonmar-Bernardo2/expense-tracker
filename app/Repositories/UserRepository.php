@@ -136,7 +136,7 @@ class UserRepository
                 in_array($approvalVoucher->module, [ApprovalVoucherModule::Allocation, ApprovalVoucherModule::Budget], true),
                 fn ($query) => $query->where('role', UserRole::Admin->value),
                 fn ($query) => $query
-                    ->where('role', '!=', UserRole::Admin->value)
+                    ->where('role', UserRole::Finance->value)
                     ->whereHas(
                         'department',
                         fn ($departmentQuery) => $departmentQuery->where('is_financial_management', true),

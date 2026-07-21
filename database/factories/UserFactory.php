@@ -71,6 +71,13 @@ class UserFactory extends Factory
         ]);
     }
 
+    public function finance(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'role' => UserRole::Finance,
+        ]);
+    }
+
     public function inactive(): static
     {
         return $this->state(fn (array $attributes) => [

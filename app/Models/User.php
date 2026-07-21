@@ -87,19 +87,14 @@ class User extends Authenticatable
         return $this->role === UserRole::Admin;
     }
 
+    public function isFinance(): bool
+    {
+        return $this->role === UserRole::Finance;
+    }
+
     public function isFinancialManagement(): bool
     {
-        if ($this->department_id === null) {
-            return false;
-        }
-
-        if ($this->relationLoaded('department') && $this->department !== null) {
-            return $this->department->isFinancialManagement();
-        }
-
-        return $this->department()
-            ->where('is_financial_management', true)
-            ->exists();
+        return $this->isFinance();
     }
 
     public function isStaff(): bool
